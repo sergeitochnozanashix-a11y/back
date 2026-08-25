@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS faq_answers CASCADE;
+
+DROP TABLE IF EXISTS faq_questions CASCADE;

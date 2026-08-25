@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS user_achievements CASCADE;
+
+DROP TABLE IF EXISTS achievements CASCADE;
