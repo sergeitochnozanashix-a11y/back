@@ -116,7 +116,13 @@ public class SecurityConfig {
         cfg.setAllowedOriginPatterns(List.of(
                 "http://localhost:3000",
                 "https://edu.pxel.software",
-                "https://*.pxel.software"
+                "https://*.pxel.software",
+                "https://learnizy-frontend.vercel.app",
+                // Preview-деплои Vercel получают адреса вида
+                // learnizy-frontend-<hash>-<account>.vercel.app. Шаблон намеренно
+                // привязан к имени проекта: "https://*.vercel.app" открыл бы API
+                // любому приложению на Vercel.
+                "https://learnizy-frontend-*.vercel.app"
         ));
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With"));
