@@ -16,6 +16,10 @@
 # Подробности и ручные шаги - в DEPLOY.md.
 set -euo pipefail
 
+# Git Bash на Windows подменяет абсолютные пути вида /data на C:/Program Files/...
+# Без этого railway volume add ругается 'Mount path must start with a /'.
+export MSYS_NO_PATHCONV=1
+
 PROJECT_NAME="${PROJECT_NAME:-learnizy}"
 
 # ------------------------------ SECRETS -------------------------------------
@@ -81,7 +85,7 @@ echo "==> MinIO"
 railway add --service minio --image minio/minio \
   --variables "MINIO_ROOT_USER=$MINIO_ROOT_USER" \
   --variables "MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD"
-railway volume add --service minio -m /data
+railway volume add -m /data   # том цепляется к залинкованному сервису (minio)
 
 # JAVA_TOOL_OPTIONS ниже перекрывает значение из Dockerfile: там стоит
 # MaxRAMPercentage (доля от лимита контейнера), а на Railway контейнер видит
@@ -97,7 +101,7 @@ railway add --service whisper --repo quinx-it/learnizy-whisper-service \
   --variables "SERVER_ADDRESS=::" \
   --variables "WHISPER_MODEL_NAME=small" \
   --variables "WHISPER_MAX_DOWNLOAD_MB=50"
-railway volume add --service whisper -m /home/app/.cache/whisper
+railway volume add -m /home/app/.cache/whisper   # к залинкованному whisper
 
 # ------------------------------- ProxyAPI -----------------------------------
 echo "==> ProxyAPI (ai)"
@@ -127,8 +131,8 @@ railway add --service backend --repo quinx-it/learnizy-backend \
   --variables "JWT_EXPIRATION_ACCESS=3600000" \
   --variables "JWT_EXPIRATION_REFRESH=86400000" \
   --variables 'MINIO_URL=http://${{minio.RAILWAY_PRIVATE_DOMAIN}}:9000' \
-  --variables "MINIO_ACCESS_KEY=$MINIO_ROOT_USER" \
-  --variables "MINIO_SECRET_KEY=$MINIO_ROOT_PASSWORD" \
+  --variables 'MINIO_ACCESS_KEY=${{minio.MINIO_ROOT_USER}}' \
+  --variables 'MINIO_SECRET_KEY=${{minio.MINIO_ROOT_PASSWORD}}' \
   --variables "MINIO_VOICE_BUCKET_NAME=voice-responses" \
   --variables "MINIO_MEDIA_BUCKET_NAME=media-files" \
   --variables "MINIO_REGION=us-east-1" \
