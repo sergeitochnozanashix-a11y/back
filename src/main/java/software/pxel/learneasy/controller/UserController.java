@@ -9,8 +9,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 import software.pxel.learneasy.controller.api.UserApi;
+import software.pxel.learneasy.api.dto.user.UpdateProfileDTO;
 import software.pxel.learneasy.api.dto.user.UpdateUserDTO;
 import software.pxel.learneasy.api.dto.user.UserDTO;
 import software.pxel.learneasy.model.User;
@@ -24,6 +26,21 @@ import static software.pxel.learneasy.constants.ApiRoutes.USER_URI;
 public class UserController implements UserApi {
 
     private final UserService userService;
+
+    // С /{id} не конфликтует: Spring выбирает маршрут по специфичности, и
+    // литеральный сегмент выигрывает у шаблона с переменной.
+    @GetMapping("/me")
+    @PreAuthorize("hasAnyAuthority('USER','ADMIN')")
+    public ResponseEntity<UserDTO> getCurrentUser(@AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(userService.getCurrentUserProfile(currentUser));
+    }
+
+    @PatchMapping("/me")
+    @PreAuthorize("hasAnyAuthority('USER','ADMIN')")
+    public ResponseEntity<UserDTO> updateCurrentUser(@Valid @RequestBody UpdateProfileDTO updateDTO,
+                                                     @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(userService.updateCurrentUserProfile(currentUser, updateDTO));
+    }
 
     @GetMapping
     @PreAuthorize("hasAuthority('ADMIN')")

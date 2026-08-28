@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import software.pxel.learneasy.api.dto.common.ErrorResponse;
 import software.pxel.learneasy.api.dto.user.PageUserResponse;
+import software.pxel.learneasy.api.dto.user.UpdateProfileDTO;
 import software.pxel.learneasy.api.dto.user.UpdateUserDTO;
 import software.pxel.learneasy.api.dto.user.UserDTO;
 import software.pxel.learneasy.model.User;
@@ -23,6 +24,59 @@ import software.pxel.learneasy.model.User;
 @Tag(name = "User API", description = "API для управления пользователями")
 @SecurityRequirement(name = "bearerAuth")
 public interface UserApi {
+
+    @Operation(
+            summary = "Получить собственный профиль",
+            description = "Возвращает профиль текущего пользователя. Идентификатор берётся из токена, "
+                    + "в пути не передаётся - прочитать чужой профиль этим методом нельзя. "
+                    + "Профильные поля могут быть null, пока пользователь их не заполнил.",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Успешный ответ",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = UserDTO.class))),
+                    @ApiResponse(responseCode = "401", description = "Неавторизованный доступ",
+                            content = @Content),
+                    @ApiResponse(responseCode = "500", description = "Внутренняя ошибка сервера",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class)))
+            }
+    )
+    ResponseEntity<UserDTO> getCurrentUser(
+            @AuthenticationPrincipal
+            @Parameter(hidden = true) User currentUser);
+
+    @Operation(
+            summary = "Обновить собственный профиль",
+            description = "Частичное обновление: незаданные (null) поля остаются без изменений, "
+                    + "поэтому очистить заполненное поле этим методом нельзя. "
+                    + "Аватар передаётся как avatarKey - objectKey из ответа "
+                    + "POST /api/v1/file-storage/upload.",
+            requestBody = @RequestBody(
+                    required = true,
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = UpdateProfileDTO.class))
+            ),
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Профиль обновлён",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = UserDTO.class))),
+                    @ApiResponse(responseCode = "400", description = "Ошибка валидации",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class))),
+                    @ApiResponse(responseCode = "401", description = "Неавторизованный доступ",
+                            content = @Content),
+                    @ApiResponse(responseCode = "409", description = "Электронная почта уже занята",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class))),
+                    @ApiResponse(responseCode = "500", description = "Внутренняя ошибка сервера",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class)))
+            }
+    )
+    ResponseEntity<UserDTO> updateCurrentUser(
+            UpdateProfileDTO updateDTO,
+            @AuthenticationPrincipal
+            @Parameter(hidden = true) User currentUser);
 
     @Operation(
             summary = "Получить всех пользователей",

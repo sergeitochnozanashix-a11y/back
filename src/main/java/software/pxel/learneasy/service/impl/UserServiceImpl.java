@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import software.pxel.learneasy.api.dto.auth.AuthRequest;
 import software.pxel.learneasy.api.dto.auth.RegisterRequest;
+import software.pxel.learneasy.api.dto.user.UpdateProfileDTO;
 import software.pxel.learneasy.api.dto.user.UpdateUserDTO;
 import software.pxel.learneasy.api.dto.user.UserDTO;
 import software.pxel.learneasy.exception.JwtAuthenticationException;
@@ -20,8 +21,15 @@ import software.pxel.learneasy.exception.ResourceNotFoundException;
 import software.pxel.learneasy.exception.UserAlreadyExistsException;
 import software.pxel.learneasy.mapper.UserMapper;
 import software.pxel.learneasy.model.User;
+import software.pxel.learneasy.model.UserProfile;
+import software.pxel.learneasy.repository.UserProfileRepository;
 import software.pxel.learneasy.repository.UserRepository;
 import software.pxel.learneasy.service.UserService;
+
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -29,6 +37,7 @@ import software.pxel.learneasy.service.UserService;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final UserProfileRepository userProfileRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
 
@@ -94,15 +103,24 @@ public class UserServiceImpl implements UserService {
 
     @Transactional(readOnly = true)
     public Page<UserDTO> findAllUsers(Pageable pageable) {
-        return userRepository.findAll(pageable)
-                .map(userMapper::toDto);
+        Page<User> users = userRepository.findAll(pageable);
+
+        // Профили страницы забираем одним запросом: обращение к репозиторию
+        // внутри map() дало бы по SELECT на каждую строку списка.
+        List<Long> ids = users.getContent().stream().map(User::getId).toList();
+        Map<Long, UserProfile> profiles = ids.isEmpty()
+                ? Map.of()
+                : userProfileRepository.findAllByUserIdIn(ids).stream()
+                .collect(Collectors.toMap(UserProfile::getUserId, Function.identity()));
+
+        return users.map(user -> userMapper.toDto(user, profiles.get(user.getId())));
     }
 
     @Transactional(readOnly = true)
     public UserDTO findUserById(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
-        return userMapper.toDto(user);
+        return userMapper.toDto(user, userProfileRepository.findById(id).orElse(null));
     }
 
     @Transactional
@@ -126,6 +144,49 @@ public class UserServiceImpl implements UserService {
         userRepository.save(user);
 
         return userMapper.toDto(user);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserDTO getCurrentUserProfile(User currentUser) {
+        User user = reloadCurrentUser(currentUser);
+        return userMapper.toDto(user, userProfileRepository.findById(user.getId()).orElse(null));
+    }
+
+    @Override
+    @Transactional
+    public UserDTO updateCurrentUserProfile(User currentUser, UpdateProfileDTO updateDTO) {
+        User user = reloadCurrentUser(currentUser);
+
+        if (updateDTO.email() != null && !updateDTO.email().equals(user.getEmail())) {
+            if (userRepository.existsByEmail(updateDTO.email())) {
+                throw new ResourceConflictException("Email '" + updateDTO.email() + "' is already taken.");
+            }
+            user.setEmail(updateDTO.email());
+            userRepository.save(user);
+        }
+
+        // Строки профиля может ещё не быть: она создаётся при первом сохранении,
+        // а не вместе с пользователем при регистрации.
+        UserProfile profile = userProfileRepository.findById(user.getId())
+                .orElseGet(() -> new UserProfile(user));
+
+        userMapper.updateProfileFromDto(updateDTO, profile);
+        UserProfile saved = userProfileRepository.save(profile);
+
+        log.info("Profile updated for user {}", user.getUsername());
+        return userMapper.toDto(user, saved);
+    }
+
+    /**
+     * Principal кладётся в SecurityContext при разборе JWT и к моменту вызова
+     * уже отсоединён от сессии Hibernate. Перечитываем его, чтобы работать
+     * с управляемой сущностью и со свежими данными.
+     */
+    private User reloadCurrentUser(User currentUser) {
+        return userRepository.findById(currentUser.getId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "User not found with id: " + currentUser.getId()));
     }
 
     @Transactional
