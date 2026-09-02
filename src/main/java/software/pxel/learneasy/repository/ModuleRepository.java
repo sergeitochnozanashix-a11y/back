@@ -27,6 +27,15 @@ public interface ModuleRepository extends FilterableRepository<Module, Long> {
     @Query("SELECT m.sequenceOrder FROM Module m WHERE m.course.id = :courseId ORDER BY m.sequenceOrder ASC")
     List<Integer> findAllSequenceOrderByCourseId(Long courseId);
 
+    /**
+     * Порядковые номера курса без учёта одного модуля. Нужен при обновлении:
+     * иначе модуль конфликтует сам с собой и сохранить его с прежним
+     * sequenceOrder невозможно.
+     */
+    @Query("SELECT m.sequenceOrder FROM Module m WHERE m.course.id = :courseId AND m.id <> :excludedModuleId ORDER BY m.sequenceOrder ASC")
+    List<Integer> findAllSequenceOrderByCourseIdExcluding(@Param("courseId") Long courseId,
+                                                          @Param("excludedModuleId") Long excludedModuleId);
+
     @Query("SELECT m.sequenceOrder FROM Module m where m.id = :id")
     Integer findSequenceOrderById(Long id);
 

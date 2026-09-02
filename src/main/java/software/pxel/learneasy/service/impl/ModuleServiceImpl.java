@@ -141,7 +141,8 @@ public class ModuleServiceImpl implements ModuleService {
         existingModule.setCourse(course);
         existingModule.setTitle(moduleRequest.title());
         existingModule.setDescription(moduleRequest.description());
-        existingModule.setSequenceOrder(getValidatedSequenceOrder(moduleRequest.courseId(), moduleRequest.sequenceOrder()));
+        existingModule.setSequenceOrder(
+                getValidatedSequenceOrderForUpdate(moduleRequest.courseId(), id, moduleRequest.sequenceOrder()));
 
         Module updatedModule = moduleRepository.save(existingModule);
         log.info("Successfully updated module ID: {}, new title: '{}'", updatedModule.getId(), updatedModule.getTitle());
@@ -232,6 +233,33 @@ public class ModuleServiceImpl implements ModuleService {
         );
 
         return new ModuleDetailsDTO(moduleInfo, lessonProgressDTOs);
+    }
+
+    /**
+     * Проверка уникальности при обновлении: сам обновляемый модуль из выборки
+     * исключается, иначе сохранение с прежним sequenceOrder упиралось бы в
+     * конфликт с самим собой.
+     * <p>
+     * Пустой список означает, что в курсе больше нет других модулей - тогда
+     * запрошенное значение принимается как есть. Возвращать здесь 0, как это
+     * делает ветка создания, нельзя: это молча перетёрло бы порядок, заданный
+     * пользователем, у единственного модуля курса.
+     */
+    private Integer getValidatedSequenceOrderForUpdate(Long courseId, Long moduleId, Integer sequenceOrder) {
+        List<Integer> takenSequenceOrders =
+                moduleRepository.findAllSequenceOrderByCourseIdExcluding(courseId, moduleId);
+
+        if (takenSequenceOrders == null || takenSequenceOrders.isEmpty()) {
+            return sequenceOrder;
+        }
+
+        if (takenSequenceOrders.contains(sequenceOrder)) {
+            log.warn("Attempt to update module {} with sequence order {} already taken in course {}. Conflict",
+                    moduleId, sequenceOrder, courseId);
+            throw new ResourceConflictException("Sequence order cannot be duplicated. Max sequence order: "
+                    + Collections.max(takenSequenceOrders));
+        }
+        return sequenceOrder;
     }
 
     private Integer getValidatedSequenceOrder(Long courseId, Integer sequenceOrder) {

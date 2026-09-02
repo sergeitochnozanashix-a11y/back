@@ -277,31 +277,32 @@ class ModuleServiceImplTest {
             Module existing = new Module();
             existing.setId(7L);
             when(moduleRepository.findById(7L)).thenReturn(Optional.of(existing));
-            when(moduleRepository.findAllSequenceOrderByCourseId(1L)).thenReturn(List.of(1, 3, 4));
+            when(moduleRepository.findAllSequenceOrderByCourseIdExcluding(1L, 7L)).thenReturn(List.of(1, 3, 4));
 
             assertThrows(ResourceConflictException.class, () -> service.updateModule(7L, req));
             verify(moduleRepository, never()).save(any());
         }
 
         @Test
-        @DisplayName("успех — пустые sequence → sequenceOrder=0")
-        void success_emptySequence_setsZero() {
+        @DisplayName("успех — других модулей в курсе нет → берётся запрошенный sequenceOrder")
+        void success_noOtherModules_keepsRequestedOrder() {
             ModuleRequest req = new ModuleRequest("T2", "D2", 1L, 9);
             when(courseRepository.findById(1L)).thenReturn(Optional.of(course(1L, "C")));
             Module existing = new Module();
             existing.setId(8L);
             when(moduleRepository.findById(8L)).thenReturn(Optional.of(existing));
-            when(moduleRepository.findAllSequenceOrderByCourseId(1L)).thenReturn(Collections.emptyList());
+            when(moduleRepository.findAllSequenceOrderByCourseIdExcluding(1L, 8L)).thenReturn(Collections.emptyList());
 
             Module saved = new Module();
             saved.setId(8L);
-            saved.setSequenceOrder(0);
+            saved.setSequenceOrder(9);
             when(moduleRepository.save(existing)).thenReturn(saved);
-            when(moduleMapper.toModuleResponse(saved)).thenReturn(new ModuleResponse(8L, "T2", "D2", 1L, 0));
+            when(moduleMapper.toModuleResponse(saved)).thenReturn(new ModuleResponse(8L, "T2", "D2", 1L, 9));
 
             ModuleResponse out = service.updateModule(8L, req);
 
-            assertEquals(0, out.sequenceOrder());
+            assertEquals(9, out.sequenceOrder());
+            assertEquals(9, existing.getSequenceOrder());
             assertEquals("T2", out.title());
             assertEquals("D2", out.description());
         }
@@ -314,7 +315,7 @@ class ModuleServiceImplTest {
             Module existing = new Module();
             existing.setId(9L);
             when(moduleRepository.findById(9L)).thenReturn(Optional.of(existing));
-            when(moduleRepository.findAllSequenceOrderByCourseId(1L)).thenReturn(List.of(1, 2, 3));
+            when(moduleRepository.findAllSequenceOrderByCourseIdExcluding(1L, 9L)).thenReturn(List.of(1, 2, 3));
 
             Module saved = new Module();
             saved.setId(9L);
@@ -330,6 +331,54 @@ class ModuleServiceImplTest {
             assertEquals(5, out.sequenceOrder());
             assertEquals("NewT", out.title());
             assertEquals("NewD", out.description());
+        }
+
+        @Test
+        @DisplayName("успех — сохранение с собственным неизменным sequenceOrder не конфликтует само с собой")
+        void success_keepsOwnSequenceOrder() {
+            // Модуль 10 уже стоит на позиции 2. Пользователь правит только
+            // заголовок и присылает тот же sequenceOrder - это не дубликат.
+            ModuleRequest req = new ModuleRequest("Renamed", "D", 1L, 2);
+            when(courseRepository.findById(1L)).thenReturn(Optional.of(course(1L, "C")));
+
+            Module existing = new Module();
+            existing.setId(10L);
+            existing.setSequenceOrder(2);
+            when(moduleRepository.findById(10L)).thenReturn(Optional.of(existing));
+            // Позиция 2 принадлежит самому модулю 10, поэтому в выборке её нет.
+            when(moduleRepository.findAllSequenceOrderByCourseIdExcluding(1L, 10L)).thenReturn(List.of(1, 3));
+
+            Module saved = new Module();
+            saved.setId(10L);
+            saved.setTitle("Renamed");
+            saved.setSequenceOrder(2);
+            when(moduleRepository.save(existing)).thenReturn(saved);
+            when(moduleMapper.toModuleResponse(saved)).thenReturn(new ModuleResponse(10L, "Renamed", "D", 1L, 2));
+
+            ModuleResponse out = service.updateModule(10L, req);
+
+            assertEquals(2, out.sequenceOrder());
+            assertEquals("Renamed", out.title());
+            verify(moduleRepository).save(existing);
+        }
+
+        @Test
+        @DisplayName("ошибка — занятый чужим модулем sequenceOrder по-прежнему конфликтует")
+        void error_sequenceTakenByAnotherModule() {
+            ModuleRequest req = new ModuleRequest("T", "D", 1L, 3);
+            when(courseRepository.findById(1L)).thenReturn(Optional.of(course(1L, "C")));
+
+            Module existing = new Module();
+            existing.setId(10L);
+            existing.setSequenceOrder(2);
+            when(moduleRepository.findById(10L)).thenReturn(Optional.of(existing));
+            // 3 занята другим модулем курса - это настоящий дубликат.
+            when(moduleRepository.findAllSequenceOrderByCourseIdExcluding(1L, 10L)).thenReturn(List.of(1, 3));
+
+            ResourceConflictException ex =
+                    assertThrows(ResourceConflictException.class, () -> service.updateModule(10L, req));
+            assertTrue(ex.getMessage().contains("Sequence order cannot be duplicated"));
+            verify(moduleRepository, never()).save(any());
         }
     }
 
