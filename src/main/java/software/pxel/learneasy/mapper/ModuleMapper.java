@@ -29,6 +29,7 @@ public interface ModuleMapper {
     }
 
     @Mapping(target = "lessons", source = "lessons", qualifiedByName = "mapLessonsToListLessonWithoutContent")
+    @Mapping(target = "courseId", expression = "java(module.getCourse() != null ? module.getCourse().getId() : null)")
     ModuleWithLessonList toModuleWithLessonListDTO(Module module);
 
     @Mapping(target = "courseId", expression = "java(module.getCourse() != null ? module.getCourse().getId() : null)")

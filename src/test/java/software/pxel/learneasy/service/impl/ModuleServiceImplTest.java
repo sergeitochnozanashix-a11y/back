@@ -191,11 +191,17 @@ class ModuleServiceImplTest {
         void success_maps() {
             Module m = new Module();
             when(moduleRepository.findByIdWithLessons(7L)).thenReturn(Optional.of(m));
-            ModuleWithLessonList dto = ModuleWithLessonList.builder().id(7L).title("T").description("D").lessons(List.of()).build();
+            ModuleWithLessonList dto = ModuleWithLessonList.builder()
+                    .id(7L).title("T").description("D")
+                    .courseId(3L).sequenceOrder(2)
+                    .lessons(List.of()).build();
             when(moduleMapper.toModuleWithLessonListDTO(m)).thenReturn(dto);
 
             ModuleWithLessonList out = service.getModuleById(7L);
             assertEquals(7L, out.id());
+            // Без courseId и sequenceOrder ответ нельзя отправить обратно в PUT.
+            assertEquals(3L, out.courseId());
+            assertEquals(2, out.sequenceOrder());
             verify(moduleMapper).toModuleWithLessonListDTO(m);
         }
     }
