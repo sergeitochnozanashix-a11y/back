@@ -1,5 +1,6 @@
 package software.pxel.learneasy.exception.global;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,7 @@ import software.pxel.learneasy.exception.StorageException;
 import software.pxel.learneasy.exception.UserAlreadyExistsException;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -105,10 +107,45 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
-        log.warn("Resource not found: {}", ex.getMessage());
+        log.warn("Request body could not be read: {}", ex.getMessage());
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(createErrorResponse("Json parse error", HttpStatus.BAD_REQUEST));
+                .body(createErrorResponse(describeUnreadableBody(ex), HttpStatus.BAD_REQUEST));
+    }
+
+    /**
+     * Jackson не может собрать объект - например, в поле-перечисление пришло
+     * значение вне набора - и падает ещё до bean validation, поэтому такие
+     * ошибки не попадают в MethodArgumentNotValidException и раньше сваливались
+     * в безликое "Json parse error". Достаём из причины имя поля и допустимые
+     * значения, чтобы сообщение было в одном ряду с остальными проверками.
+     */
+    private String describeUnreadableBody(HttpMessageNotReadableException ex) {
+        if (!(ex.getCause() instanceof InvalidFormatException cause)) {
+            return "Некорректный JSON в теле запроса.";
+        }
+
+        String field = cause.getPath().stream()
+                .map(reference -> reference.getFieldName() != null
+                        ? reference.getFieldName()
+                        : "[" + reference.getIndex() + "]")
+                .collect(Collectors.joining("."));
+        if (field.isEmpty()) {
+            field = "тело запроса";
+        }
+
+        Class<?> targetType = cause.getTargetType();
+        if (targetType != null && targetType.isEnum()) {
+            String allowed = Arrays.stream(targetType.getEnumConstants())
+                    .map(String::valueOf)
+                    .collect(Collectors.joining(", "));
+            return "Validation failed: " + field + ": недопустимое значение '" + cause.getValue()
+                    + "'. Допустимые значения: " + allowed + ".";
+        }
+
+        String typeName = targetType != null ? targetType.getSimpleName() : "ожидаемый тип";
+        return "Validation failed: " + field + ": значение '" + cause.getValue()
+                + "' не соответствует типу " + typeName + ".";
     }
 
     @ExceptionHandler(StorageException.class)

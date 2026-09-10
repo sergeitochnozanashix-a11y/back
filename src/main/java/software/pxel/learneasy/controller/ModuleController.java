@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import java.util.Set;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +17,7 @@ import software.pxel.learneasy.api.dto.module.ModuleDetailsDTO;
 import software.pxel.learneasy.api.dto.module.ModuleRequest;
 import software.pxel.learneasy.api.dto.module.ModuleResponse;
 import software.pxel.learneasy.api.dto.module.ModuleWithLessonList;
+import software.pxel.learneasy.service.util.SortRequestParser;
 import software.pxel.learneasy.model.User;
 import software.pxel.learneasy.service.ModuleService;
 
@@ -29,6 +31,16 @@ import static software.pxel.learneasy.constants.ApiRoutes.MODULES_URI;
 public class ModuleController implements ModuleApi {
 
     private final ModuleService moduleService;
+
+    /**
+     * Поля Module, по которым разрешена сортировка. id, createdAt и updatedAt
+     * приходят из AbstractAuditableEntity.
+     */
+    private static final Set<String> SORTABLE_PROPERTIES =
+            Set.of("id", "title", "description", "sequenceOrder", "createdAt", "updatedAt");
+
+    private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.ASC, "title");
+
 
     @Override
     @GetMapping("/{id}")
@@ -72,20 +84,8 @@ public class ModuleController implements ModuleApi {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "title,asc") String sort) {
 
-        String[] sortParams;
-        try {
-            if (sort == null || !sort.contains(",")) {
-                throw new IllegalArgumentException("Malformed sort parameter");
-            }
-            sortParams = sort.split(",");
-            if (sortParams.length != 2 || sortParams[0].isEmpty() || sortParams[1].isEmpty()) {
-                throw new IllegalArgumentException("Malformed sort parameter");
-            }
-        } catch (IllegalArgumentException e) {
-            sortParams = new String[]{"title", "asc"};
-        }
-        Sort.Direction direction = Sort.Direction.fromString(sortParams[1]);
-        Pageable pageable = PageRequest.of(page, size, direction, sortParams[0]);
+        Pageable pageable = PageRequest.of(page, size,
+                SortRequestParser.parse(sort, SORTABLE_PROPERTIES, DEFAULT_SORT));
 
         return ResponseEntity.ok(moduleService.getAllModules(
                 title,

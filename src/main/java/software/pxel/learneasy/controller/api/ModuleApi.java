@@ -64,7 +64,7 @@ public interface ModuleApi {
             @Parameter(
                     description = "Поле и направление сортировки (формат: поле,направление)",
                     example = "title,asc",
-                    schema = @Schema(type = "string", allowableValues = {"title,asc", "title,desc", "createdAt,asc", "createdAt,desc"})
+                    schema = @Schema(type = "string", allowableValues = {"id,asc", "id,desc", "title,asc", "title,desc", "description,asc", "description,desc", "sequenceOrder,asc", "sequenceOrder,desc", "createdAt,asc", "createdAt,desc", "updatedAt,asc", "updatedAt,desc"})
             )
             @RequestParam(defaultValue = "title,asc") String sort);
 

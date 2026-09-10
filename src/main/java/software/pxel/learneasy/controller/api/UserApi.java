@@ -102,7 +102,7 @@ public interface UserApi {
             @Parameter(
                     description = "Поле и направление сортировки (формат: поле,направление)",
                     example = "username,asc",
-                    schema = @Schema(type = "string", allowableValues = {"username,asc", "username,desc", "createdAt,asc", "createdAt,desc"})
+                    schema = @Schema(type = "string", allowableValues = {"id,asc", "id,desc", "username,asc", "username,desc", "email,asc", "email,desc", "role,asc", "role,desc", "createdAt,asc", "createdAt,desc", "updatedAt,asc", "updatedAt,desc"})
             )
             @RequestParam(defaultValue = "username,asc") String sort);
 
