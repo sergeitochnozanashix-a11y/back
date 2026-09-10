@@ -1,6 +1,7 @@
 package software.pxel.learneasy.exception.global;
 
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -121,31 +122,44 @@ public class GlobalExceptionHandler {
      * значения, чтобы сообщение было в одном ряду с остальными проверками.
      */
     private String describeUnreadableBody(HttpMessageNotReadableException ex) {
-        if (!(ex.getCause() instanceof InvalidFormatException cause)) {
+        // MismatchedInputException - общий предок для случаев, когда JSON
+        // синтаксически цел, но значение не ложится в тип поля. Он несёт путь
+        // до поля, а InvalidFormatException вдобавок - само значение и целевой
+        // тип, поэтому сначала пробуем его.
+        if (!(ex.getCause() instanceof MismatchedInputException cause)) {
             return "Некорректный JSON в теле запроса.";
         }
 
+        String field = describeFieldPath(cause);
+
+        if (cause instanceof InvalidFormatException formatCause) {
+            Class<?> targetType = formatCause.getTargetType();
+            if (targetType != null && targetType.isEnum()) {
+                String allowed = Arrays.stream(targetType.getEnumConstants())
+                        .map(String::valueOf)
+                        .collect(Collectors.joining(", "));
+                return "Validation failed: " + field + ": недопустимое значение '" + formatCause.getValue()
+                        + "'. Допустимые значения: " + allowed + ".";
+            }
+            String typeName = targetType != null ? targetType.getSimpleName() : "ожидаемый тип";
+            return "Validation failed: " + field + ": значение '" + formatCause.getValue()
+                    + "' не соответствует типу " + typeName + ".";
+        }
+
+        return "Validation failed: " + field + ": значение не соответствует ожидаемому типу.";
+    }
+
+    /**
+     * Собирает путь до проблемного поля: {@code address.city} для вложенного
+     * объекта, {@code items[2].title} для элемента массива.
+     */
+    private String describeFieldPath(MismatchedInputException cause) {
         String field = cause.getPath().stream()
                 .map(reference -> reference.getFieldName() != null
                         ? reference.getFieldName()
                         : "[" + reference.getIndex() + "]")
                 .collect(Collectors.joining("."));
-        if (field.isEmpty()) {
-            field = "тело запроса";
-        }
-
-        Class<?> targetType = cause.getTargetType();
-        if (targetType != null && targetType.isEnum()) {
-            String allowed = Arrays.stream(targetType.getEnumConstants())
-                    .map(String::valueOf)
-                    .collect(Collectors.joining(", "));
-            return "Validation failed: " + field + ": недопустимое значение '" + cause.getValue()
-                    + "'. Допустимые значения: " + allowed + ".";
-        }
-
-        String typeName = targetType != null ? targetType.getSimpleName() : "ожидаемый тип";
-        return "Validation failed: " + field + ": значение '" + cause.getValue()
-                + "' не соответствует типу " + typeName + ".";
+        return field.isEmpty() ? "тело запроса" : field;
     }
 
     @ExceptionHandler(StorageException.class)
