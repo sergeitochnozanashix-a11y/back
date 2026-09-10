@@ -1,5 +1,6 @@
 package software.pxel.learneasy.service.impl;
 
+import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -14,6 +15,7 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.util.ReflectionTestUtils;
+import software.pxel.learneasy.exception.EmailDeliveryException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -21,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -106,6 +109,18 @@ class EmailServiceImplTest {
             String capturedHtml = htmlContentCaptor.getValue();
             assertTrue(capturedHtml.contains(code));
             assertFalse(capturedHtml.contains("[[VERIFICATION_CODE]]"));
+        }
+
+        @Test
+        @DisplayName("Сценарий ошибки: сбой отправки пробрасывается, а не гасится")
+        void sendVerificationEmail_messagingFailure_propagates() throws Exception {
+            doThrow(new MessagingException("smtp down"))
+                    .when(service).sendMimeMessage(any(), any(), any());
+
+            // Раньше исключение здесь логировалось и гасилось: вызывающий код
+            // не мог отличить отправленное письмо от неотправленного.
+            assertThrows(EmailDeliveryException.class,
+                    () -> service.sendVerificationEmail("new.user@example.com", "123456"));
         }
 
         @Test

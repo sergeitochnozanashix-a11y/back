@@ -24,6 +24,7 @@ import java.security.SecureRandom;
 
 import static software.pxel.learneasy.constants.AuthConstants.INVALID_VERIFICATION_RESPONSE;
 import static software.pxel.learneasy.constants.AuthConstants.MESSAGE_EMAIL_VERIFICATION;
+import static software.pxel.learneasy.constants.AuthConstants.MESSAGE_EMAIL_VERIFICATION_NOT_SENT;
 import static software.pxel.learneasy.constants.AuthConstants.RATE_LIMIT_EX_RESPONSE;
 import static software.pxel.learneasy.constants.AuthConstants.USER_EMAIL_NOT_FOUND_EX_RESPONSE;
 import static software.pxel.learneasy.constants.AuthConstants.USER_EMAIL_NO_VERIFICATION_EX_RESPONSE;
@@ -45,14 +46,43 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     public RegistrationResponse register(RegisterRequest request) {
         User createdUser = userService.register(request);
 
-        String verificationCode = generateVerificationCode();
+        // К этому моменту пользователь уже закоммичен собственной транзакцией
+        // UserService, откатить его отсюда нельзя. Поэтому доставка кода
+        // намеренно не считается критичной: раньше её падение отдавало 500 при
+        // уже существующем аккаунте, и пользователь оказывался в тупике -
+        // повторная регистрация давала 409, вход 401 (почта не подтверждена),
+        // а до экрана с кнопкой повторной отправки клиент не доходил.
+        boolean codeDelivered = tryDeliverVerificationCode(createdUser.getEmail());
 
-        redisVerificationService.saveVerificationCode(createdUser.getEmail(), verificationCode);
-        redisVerificationService.incrementResendCounterAndCheckLockout(createdUser.getEmail());
+        return new RegistrationResponse(
+                codeDelivered ? MESSAGE_EMAIL_VERIFICATION : MESSAGE_EMAIL_VERIFICATION_NOT_SENT,
+                createdUser.getEmail(),
+                codeDelivered);
+    }
 
-        emailService.sendVerificationEmail(createdUser.getEmail(), verificationCode);
+    /**
+     * Генерирует код, кладёт его в Redis и отправляет письмо. Любой сбой на
+     * этом пути гасится и логируется: аккаунт уже создан, а код пользователь
+     * сможет запросить через /auth/resend-verification-code.
+     *
+     * @return удалось ли доставить код
+     */
+    private boolean tryDeliverVerificationCode(String email) {
+        try {
+            String verificationCode = generateVerificationCode();
 
-        return new RegistrationResponse(MESSAGE_EMAIL_VERIFICATION, createdUser.getEmail());
+            redisVerificationService.saveVerificationCode(email, verificationCode);
+            redisVerificationService.incrementResendCounterAndCheckLockout(email);
+
+            emailService.sendVerificationEmail(email, verificationCode);
+            return true;
+        } catch (Exception e) {
+            // Ловим широко намеренно: сюда попадают и сбои SMTP, и недоступность
+            // Redis. Ни один из них не должен отменять уже созданный аккаунт.
+            log.error("Не удалось доставить код подтверждения на {}. Аккаунт создан; "
+                    + "код можно запросить повторно через /auth/resend-verification-code", email, e);
+            return false;
+        }
     }
 
     @Override

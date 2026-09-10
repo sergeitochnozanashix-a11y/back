@@ -14,6 +14,13 @@ public record RegistrationResponse(
                 description = "Email адрес, на который было отправлено письмо",
                 example = "user@example.com"
         )
-        String email
+        String email,
+
+        @Schema(
+                description = "Удалось ли отправить письмо с кодом. Если false, аккаунт всё равно создан, "
+                        + "но код нужно запросить через POST /api/v1/auth/resend-verification-code",
+                example = "true"
+        )
+        boolean emailSent
 ) {
 }

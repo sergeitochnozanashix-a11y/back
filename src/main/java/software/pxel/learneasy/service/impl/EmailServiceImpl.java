@@ -10,6 +10,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import software.pxel.learneasy.exception.EmailDeliveryException;
 import software.pxel.learneasy.service.EmailService;
 
 import java.io.BufferedReader;
@@ -82,7 +83,11 @@ public class EmailServiceImpl implements EmailService {
             sendMimeMessage(toEmail, subject, htmlContent);
             log.info("Письмо с кодом верификации отправлено на: {}", toEmail);
         } catch (MessagingException e) {
+            // Раньше исключение здесь гасилось, и вызывающий код считал письмо
+            // отправленным. Пробрасываем, чтобы register мог честно сообщить
+            // emailSent=false, а повторная отправка не отвечала ложным успехом.
             log.error("Ошибка при отправке письма для верификации на {}", toEmail, e);
+            throw new EmailDeliveryException("Failed to send verification email to " + toEmail, e);
         }
     }
 

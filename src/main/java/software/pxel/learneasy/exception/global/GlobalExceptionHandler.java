@@ -18,6 +18,7 @@ import software.pxel.learneasy.api.dto.common.ErrorResponse;
 import software.pxel.learneasy.exception.AIAssessmentException;
 import software.pxel.learneasy.exception.AIIntegrationException;
 import software.pxel.learneasy.exception.BadRequestException;
+import software.pxel.learneasy.exception.EmailDeliveryException;
 import software.pxel.learneasy.exception.InvalidTokenException;
 import software.pxel.learneasy.exception.InvalidVerificationCodeException;
 import software.pxel.learneasy.exception.JwtAuthenticationException;
@@ -227,6 +228,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(createErrorResponse(exc.getMessage(), HttpStatus.BAD_REQUEST));
+    }
+
+    @ExceptionHandler(EmailDeliveryException.class)
+    public ResponseEntity<ErrorResponse> handleEmailDeliveryException(EmailDeliveryException exc) {
+        log.error("Email delivery failed: {}", exc.getMessage(), exc);
+        return ResponseEntity
+                .status(HttpStatus.BAD_GATEWAY)
+                .body(createErrorResponse("Failed to send the email. Please try again later.", HttpStatus.BAD_GATEWAY));
     }
 
     @ExceptionHandler(InvalidTokenException.class)
