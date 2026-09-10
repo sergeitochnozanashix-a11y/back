@@ -28,7 +28,11 @@ USER ${APP_USER}:${APP_GROUP}
 
 # Приватная сеть Railway резолвится только в AAAA-записи, поэтому JVM должна
 # предпочитать IPv6 при обращении к whisper/ai-service и managed БД.
-ENV JAVA_TOOL_OPTIONS="-Djava.net.preferIPv6Addresses=true -XX:MaxRAMPercentage=60"
+# Флаг preferIPv6Addresses здесь был лишним и вредным: приватная сеть Railway
+# отдаёт только AAAA и резолвится без него, а для внешних хостов с A и AAAA
+# (например smtp.gmail.com) он гнал JVM в IPv6, которого у контейнера нет, -
+# отправка почты падала с "Network unreachable".
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=60"
 
 # Приложение слушает 8080 (server.port), а не 8090.
 EXPOSE 8080
