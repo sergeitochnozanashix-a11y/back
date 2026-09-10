@@ -1,7 +1,7 @@
 package software.pxel.learneasy.exception.global;
 
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
-import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -122,11 +122,14 @@ public class GlobalExceptionHandler {
      * значения, чтобы сообщение было в одном ряду с остальными проверками.
      */
     private String describeUnreadableBody(HttpMessageNotReadableException ex) {
-        // MismatchedInputException - общий предок для случаев, когда JSON
-        // синтаксически цел, но значение не ложится в тип поля. Он несёт путь
-        // до поля, а InvalidFormatException вдобавок - само значение и целевой
-        // тип, поэтому сначала пробуем его.
-        if (!(ex.getCause() instanceof MismatchedInputException cause)) {
+        // JsonMappingException - общий предок всех ошибок отображения JSON на
+        // объект; он несёт путь до проблемного поля. Ошибку разбора даты
+        // Jackson оборачивает именно в него, не уточняя подкласс, поэтому
+        // проверять MismatchedInputException было бы слишком узко.
+        // InvalidFormatException добавляет само значение и целевой тип -
+        // с него и начинаем. Синтаксически битый JSON сюда не попадает:
+        // это JsonParseException, и для него общее сообщение уместно.
+        if (!(ex.getCause() instanceof JsonMappingException cause)) {
             return "Некорректный JSON в теле запроса.";
         }
 
@@ -153,7 +156,7 @@ public class GlobalExceptionHandler {
      * Собирает путь до проблемного поля: {@code address.city} для вложенного
      * объекта, {@code items[2].title} для элемента массива.
      */
-    private String describeFieldPath(MismatchedInputException cause) {
+    private String describeFieldPath(JsonMappingException cause) {
         String field = cause.getPath().stream()
                 .map(reference -> reference.getFieldName() != null
                         ? reference.getFieldName()
