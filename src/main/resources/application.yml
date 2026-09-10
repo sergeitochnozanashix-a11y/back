@@ -37,6 +37,12 @@ spring:
           starttls:
             enable: true
             required: true
+          # Без явных таймаутов JavaMail ждёт ответа SMTP бесконечно, и запрос
+          # регистрации зависает вместо того, чтобы быстро вернуть ответ с
+          # emailSent=false. Пять секунд с запасом хватает живому SMTP.
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
   thymeleaf:
     prefix: classpath:/templates/
     suffix: .html
