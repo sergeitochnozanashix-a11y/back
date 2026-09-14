@@ -10,10 +10,11 @@ import software.pxel.learneasy.api.dto.mainpage.MainPageInfoResponse;
 import software.pxel.learneasy.api.dto.mainpage.UserActivityStatsResponse;
 import software.pxel.learneasy.api.dto.module.ModuleWithProgressDTO;
 import software.pxel.learneasy.api.dto.userprogress.CourseProgressResponse;
-import software.pxel.learneasy.exception.ResourceNotFoundException;
 import software.pxel.learneasy.model.Course;
 import software.pxel.learneasy.model.enums.CompletionStatus;
+import org.springframework.data.domain.Pageable;
 import software.pxel.learneasy.repository.CourseRepository;
+import software.pxel.learneasy.repository.TestAttemptRepository;
 import software.pxel.learneasy.service.UserProgressService;
 
 import java.time.LocalDate;
@@ -34,12 +35,15 @@ class MainPageServiceImplTest {
     private UserProgressService userProgressService;
     @Mock
     private CourseRepository courseRepository;
+    @Mock
+    private TestAttemptRepository testAttemptRepository;
 
     @InjectMocks
     private MainPageServiceImpl mainPageService;
 
     private static final long TEST_USER_ID = 1L;
-    private static final long DEFAULT_COURSE_ID = 1L;
+    // Намеренно не 1: курс больше не захардкожен, он приходит из активности.
+    private static final long ACTIVE_COURSE_ID = 42L;
 
     @Test
     @DisplayName("getMainPageInfo — частичное прохождение: корректные поля, currentModuleId — первый незавершённый")
@@ -49,9 +53,11 @@ class MainPageServiceImplTest {
         List<ModuleWithProgressDTO> mockModules = createMockModulesWithPartialProgress();
         List<UserActivityStatsResponse> weekly = createWeeklyActivity();
 
-        when(courseRepository.findById(DEFAULT_COURSE_ID)).thenReturn(Optional.of(mockCourse));
-        when(userProgressService.getCourseProgress(TEST_USER_ID, DEFAULT_COURSE_ID)).thenReturn(mockProgress);
-        when(userProgressService.getModulesWithProgress(DEFAULT_COURSE_ID, TEST_USER_ID)).thenReturn(mockModules);
+        when(testAttemptRepository.findLastActiveCourseIds(eq(TEST_USER_ID), any(Pageable.class)))
+                .thenReturn(List.of(ACTIVE_COURSE_ID));
+        when(courseRepository.findById(ACTIVE_COURSE_ID)).thenReturn(Optional.of(mockCourse));
+        when(userProgressService.getCourseProgress(TEST_USER_ID, ACTIVE_COURSE_ID)).thenReturn(mockProgress);
+        when(userProgressService.getModulesWithProgress(ACTIVE_COURSE_ID, TEST_USER_ID)).thenReturn(mockModules);
         when(userProgressService.getUserActivityStats(eq(TEST_USER_ID), any(LocalDate.class), any(LocalDate.class)))
                 .thenReturn(weekly);
 
@@ -62,7 +68,7 @@ class MainPageServiceImplTest {
         assertNotNull(response.modules());
         assertNotNull(response.weeklyActivity());
 
-        assertEquals(DEFAULT_COURSE_ID, response.courseInfo().id());
+        assertEquals(ACTIVE_COURSE_ID, response.courseInfo().id());
         assertEquals(mockCourse.getTitle(), response.courseInfo().title());
         assertEquals(10L, response.courseInfo().totalModules());
         assertEquals(50L, response.courseInfo().totalLessons());
@@ -80,9 +86,9 @@ class MainPageServiceImplTest {
 
         assertEquals(7, response.weeklyActivity().size());
 
-        verify(courseRepository).findById(DEFAULT_COURSE_ID);
-        verify(userProgressService).getCourseProgress(TEST_USER_ID, DEFAULT_COURSE_ID);
-        verify(userProgressService).getModulesWithProgress(DEFAULT_COURSE_ID, TEST_USER_ID);
+        verify(courseRepository).findById(ACTIVE_COURSE_ID);
+        verify(userProgressService).getCourseProgress(TEST_USER_ID, ACTIVE_COURSE_ID);
+        verify(userProgressService).getModulesWithProgress(ACTIVE_COURSE_ID, TEST_USER_ID);
         verify(userProgressService).getUserActivityStats(eq(TEST_USER_ID), any(LocalDate.class), any(LocalDate.class));
         verifyNoMoreInteractions(courseRepository, userProgressService);
     }
@@ -95,9 +101,11 @@ class MainPageServiceImplTest {
         List<ModuleWithProgressDTO> mockModules = createMockModulesWithFullProgress();
         List<UserActivityStatsResponse> weekly = createWeeklyActivity();
 
-        when(courseRepository.findById(DEFAULT_COURSE_ID)).thenReturn(Optional.of(mockCourse));
-        when(userProgressService.getCourseProgress(TEST_USER_ID, DEFAULT_COURSE_ID)).thenReturn(mockProgress);
-        when(userProgressService.getModulesWithProgress(DEFAULT_COURSE_ID, TEST_USER_ID)).thenReturn(mockModules);
+        when(testAttemptRepository.findLastActiveCourseIds(eq(TEST_USER_ID), any(Pageable.class)))
+                .thenReturn(List.of(ACTIVE_COURSE_ID));
+        when(courseRepository.findById(ACTIVE_COURSE_ID)).thenReturn(Optional.of(mockCourse));
+        when(userProgressService.getCourseProgress(TEST_USER_ID, ACTIVE_COURSE_ID)).thenReturn(mockProgress);
+        when(userProgressService.getModulesWithProgress(ACTIVE_COURSE_ID, TEST_USER_ID)).thenReturn(mockModules);
         when(userProgressService.getUserActivityStats(eq(TEST_USER_ID), any(LocalDate.class), any(LocalDate.class)))
                 .thenReturn(weekly);
 
@@ -117,9 +125,11 @@ class MainPageServiceImplTest {
         List<ModuleWithProgressDTO> mockModules = createMockModulesWithNoProgress();
         List<UserActivityStatsResponse> weekly = createWeeklyActivity();
 
-        when(courseRepository.findById(DEFAULT_COURSE_ID)).thenReturn(Optional.of(mockCourse));
-        when(userProgressService.getCourseProgress(TEST_USER_ID, DEFAULT_COURSE_ID)).thenReturn(mockProgress);
-        when(userProgressService.getModulesWithProgress(DEFAULT_COURSE_ID, TEST_USER_ID)).thenReturn(mockModules);
+        when(testAttemptRepository.findLastActiveCourseIds(eq(TEST_USER_ID), any(Pageable.class)))
+                .thenReturn(List.of(ACTIVE_COURSE_ID));
+        when(courseRepository.findById(ACTIVE_COURSE_ID)).thenReturn(Optional.of(mockCourse));
+        when(userProgressService.getCourseProgress(TEST_USER_ID, ACTIVE_COURSE_ID)).thenReturn(mockProgress);
+        when(userProgressService.getModulesWithProgress(ACTIVE_COURSE_ID, TEST_USER_ID)).thenReturn(mockModules);
         when(userProgressService.getUserActivityStats(eq(TEST_USER_ID), any(LocalDate.class), any(LocalDate.class)))
                 .thenReturn(weekly);
 
@@ -133,16 +143,54 @@ class MainPageServiceImplTest {
     }
 
     @Test
-    @DisplayName("getMainPageInfo — курс по умолчанию не найден → 404")
-    void getMainPageInfo_defaultCourseNotFound() {
-        when(courseRepository.findById(DEFAULT_COURSE_ID)).thenReturn(Optional.empty());
+    @DisplayName("getMainPageInfo — нет активности → 200 с пустым ответом, а не 404")
+    void getMainPageInfo_noActivity_returnsEmptyResponse() {
+        when(testAttemptRepository.findLastActiveCourseIds(eq(TEST_USER_ID), any(Pageable.class)))
+                .thenReturn(List.of());
 
-        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class,
-                () -> mainPageService.getMainPageInfo(TEST_USER_ID));
+        MainPageInfoResponse response = mainPageService.getMainPageInfo(TEST_USER_ID);
 
-        assertTrue(ex.getMessage().contains("Default course with ID " + DEFAULT_COURSE_ID + " not found."));
-        verify(courseRepository).findById(DEFAULT_COURSE_ID);
+        assertNotNull(response);
+        assertNull(response.courseInfo());
+        assertTrue(response.modules().isEmpty());
+        assertTrue(response.weeklyActivity().isEmpty());
+        // Ни курс, ни прогресс не запрашиваются: спрашивать нечего.
         verifyNoInteractions(userProgressService);
+        verifyNoInteractions(courseRepository);
+    }
+
+    @Test
+    @DisplayName("getMainPageInfo — курс из активности удалён → 200 с пустым ответом")
+    void getMainPageInfo_courseDeleted_returnsEmptyResponse() {
+        when(testAttemptRepository.findLastActiveCourseIds(eq(TEST_USER_ID), any(Pageable.class)))
+                .thenReturn(List.of(ACTIVE_COURSE_ID));
+        when(courseRepository.findById(ACTIVE_COURSE_ID)).thenReturn(Optional.empty());
+
+        MainPageInfoResponse response = mainPageService.getMainPageInfo(TEST_USER_ID);
+
+        assertNull(response.courseInfo());
+        verifyNoInteractions(userProgressService);
+    }
+
+    @Test
+    @DisplayName("getMainPageInfo — берётся курс последней активности, а не id=1")
+    void getMainPageInfo_usesLastActiveCourse() {
+        Course mockCourse = createMockCourse();
+        when(testAttemptRepository.findLastActiveCourseIds(eq(TEST_USER_ID), any(Pageable.class)))
+                .thenReturn(List.of(ACTIVE_COURSE_ID));
+        when(courseRepository.findById(ACTIVE_COURSE_ID)).thenReturn(Optional.of(mockCourse));
+        when(userProgressService.getCourseProgress(TEST_USER_ID, ACTIVE_COURSE_ID))
+                .thenReturn(createMockCourseProgress());
+        when(userProgressService.getModulesWithProgress(ACTIVE_COURSE_ID, TEST_USER_ID))
+                .thenReturn(createMockModulesWithPartialProgress());
+        when(userProgressService.getUserActivityStats(eq(TEST_USER_ID), any(LocalDate.class), any(LocalDate.class)))
+                .thenReturn(createWeeklyActivity());
+
+        MainPageInfoResponse response = mainPageService.getMainPageInfo(TEST_USER_ID);
+
+        assertEquals(ACTIVE_COURSE_ID, response.courseInfo().id());
+        verify(courseRepository).findById(ACTIVE_COURSE_ID);
+        verify(courseRepository, never()).findById(1L);
     }
 
     // ------------------------------------------------------------
@@ -150,7 +198,7 @@ class MainPageServiceImplTest {
 
     private Course createMockCourse() {
         Course course = new Course();
-        course.setId(DEFAULT_COURSE_ID);
+        course.setId(ACTIVE_COURSE_ID);
         course.setTitle("Основы Java-разработки");
         course.setDescription("Курс для начинающих.");
         return course;

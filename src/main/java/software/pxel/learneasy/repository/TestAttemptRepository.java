@@ -63,6 +63,25 @@ public interface TestAttemptRepository extends JpaRepository<TestAttempt, Long> 
             """)
     long countDistinctPassedLessonsByUserIdAndCourseId(@Param("userId") Long userId, @Param("courseId") Long courseId);
 
+    /**
+     * Курсы пользователя, упорядоченные по свежести активности. Первый элемент -
+     * курс, в котором он занимался последним; его и показывает главная страница.
+     * <p>
+     * Идём через {@code ta.module}, а не через {@code ta.lesson}: module_id в
+     * test_attempts объявлен NOT NULL, а lesson_id допускает null, и попытка без
+     * урока выпала бы из выборки.
+     * <p>
+     * Отдельной записи «пользователь ↔ курс» в модели нет, поэтому активность -
+     * единственный доступный признак принадлежности к курсу.
+     */
+    @Query("""
+            SELECT ta.module.course.id
+            FROM TestAttempt ta
+            WHERE ta.userId = :userId
+            ORDER BY ta.createdAt DESC
+            """)
+    List<Long> findLastActiveCourseIds(@Param("userId") Long userId, Pageable pageable);
+
     @Query("""
             SELECT ta.lesson.id
             FROM TestAttempt ta

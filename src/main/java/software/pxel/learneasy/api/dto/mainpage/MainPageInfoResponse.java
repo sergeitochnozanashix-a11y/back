@@ -6,10 +6,17 @@ import java.util.List;
 
 @Schema(description = "Агрегированный ответ для главной страницы пользователя")
 public record MainPageInfoResponse(
-        @Schema(description = "Информация о текущем курсе пользователя")
+        @Schema(
+                description = """
+                        Курс, в котором пользователь занимался последним.
+                        null, если активности ещё не было — тогда modules и
+                        weeklyActivity тоже пустые.
+                        """,
+                nullable = true
+        )
         CourseInfoDTO courseInfo,
 
-        @Schema(description = "Список модулей текущего курса с прогрессом")
+        @Schema(description = "Список модулей текущего курса с прогрессом. Пуст, если courseInfo = null")
         List<ModuleInfoDTO> modules,
 
         @Schema(description = """

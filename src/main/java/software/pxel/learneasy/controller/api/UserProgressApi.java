@@ -47,6 +47,11 @@ public interface UserProgressApi {
                     возвращаются данные указанного пользователя.
                     Если параметр не указан — возвращаются данные текущего пользователя.
                     Для обычных пользователей userId игнорируется.
+
+                    Курс определяется по последней активности пользователя.
+                    Если активности ещё не было, возвращается 200 с courseInfo = null
+                    и пустыми modules и weeklyActivity — это нормальное состояние
+                    нового аккаунта, а не ошибка.
                     """,
             responses = {
                     @ApiResponse(responseCode = "200", description = "Успешный ответ",
@@ -54,7 +59,7 @@ public interface UserProgressApi {
                                     schema = @Schema(implementation = MainPageInfoResponse.class))),
                     @ApiResponse(responseCode = "401", description = "Неавторизованный доступ", content = @Content),
                     @ApiResponse(responseCode = "403", description = "Доступ запрещен", content = @Content),
-                    @ApiResponse(responseCode = "404", description = "Курс по умолчанию не найден",
+                    @ApiResponse(responseCode = "404", description = "Пользователь с указанным userId не найден",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class))),
                     @ApiResponse(responseCode = "500", description = "Внутренняя ошибка сервера",
