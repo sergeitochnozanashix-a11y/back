@@ -130,7 +130,7 @@ public interface TestAttemptRepository extends JpaRepository<TestAttempt, Long> 
             SELECT
                 u.id                                                as userId,
                 u.username                                          as fullName,
-                up.total_passed_lessons                             as totalPassedLessons,
+                COALESCE(up.total_passed_lessons, 0)                as totalPassedLessons,
                 (SELECT COUNT(*) FROM CourseLessonsWithTests)       as totalLessonsWithTests,
                 nm.next_module_name as nextModuleName,
                 nm.next_module_order as nextModuleOrder,

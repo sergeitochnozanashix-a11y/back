@@ -26,7 +26,8 @@ public interface AdminAnalyticsApi {
     )
     @Parameter(
             name = "period",
-            description = "Период для расчета статистики. По умолчанию 'month'.",
+            description = "Период для расчета статистики. Необязательный, по умолчанию 'month'. "
+                    + "Недопустимое значение даёт 400.",
             in = io.swagger.v3.oas.annotations.enums.ParameterIn.QUERY,
             schema = @Schema(implementation = Period.class)
     )
@@ -37,6 +38,7 @@ public interface AdminAnalyticsApi {
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = AnalyticResponse.class))
             ),
+            @ApiResponse(responseCode = "400", description = "Недопустимое значение параметра period.", content = @Content),
             @ApiResponse(responseCode = "401", description = "Неавторизованный доступ.", content = @Content),
             @ApiResponse(responseCode = "403", description = "Доступ запрещен. Требуется роль ADMIN.", content = @Content)
     })

@@ -111,4 +111,30 @@ class AnalyticsServiceImplTest {
                 LocalDate.now().getMonth().getDisplayName(TextStyle.FULL, new Locale("ru"))
         );
     }
+
+    @Test
+    @DisplayName("Пользователь без прогресса по курсу не роняет дашборд")
+    void getAnalyticsDashboard_userWithoutProgress_doesNotFail() {
+        // Реальный случай с прода: пользователь попадает в выборку по активности
+        // (JOIN LatestUserActivity), но строк прогресса по курсу у него нет, и
+        // LEFT JOIN отдаёт null. Распаковка null в int роняла весь дашборд.
+        UserProgressProjection noProgress = mock(UserProgressProjection.class);
+        when(noProgress.getUserId()).thenReturn(789L);
+        when(noProgress.getFullName()).thenReturn("Новичок Без Прогресса");
+        when(noProgress.getTotalPassedLessons()).thenReturn(null);
+        when(noProgress.getTotalLessonsWithTests()).thenReturn(null);
+        when(noProgress.getNextModuleName()).thenReturn(null);
+        when(noProgress.getPassedInNextModule()).thenReturn(null);
+
+        when(userRepository.getAnalyticsSummary("month")).thenReturn(summaryProjection);
+        when(testAttemptRepository.findUserProgressForDashboard(anyLong())).thenReturn(List.of(noProgress));
+
+        AnalyticResponse response = analyticsService.getAnalyticsDashboard(Period.MONTH);
+
+        UserTable row = response.userTable().get(0);
+        assertThat(row.id()).isEqualTo(789L);
+        assertThat(row.progress()).isEqualTo("0%");
+        assertThat(row.currentLesson()).isEqualTo(1);
+        assertThat(row.currentModule()).isNull();
+    }
 }

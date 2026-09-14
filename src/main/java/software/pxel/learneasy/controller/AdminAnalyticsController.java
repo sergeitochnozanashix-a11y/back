@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import software.pxel.learneasy.api.dto.admin.response.AnalyticResponse;
 import software.pxel.learneasy.controller.api.AdminAnalyticsApi;
+import software.pxel.learneasy.exception.BadRequestException;
 import software.pxel.learneasy.model.enums.Period;
 import software.pxel.learneasy.service.AnalyticsService;
 
@@ -25,7 +26,16 @@ public class AdminAnalyticsController implements AdminAnalyticsApi {
     @GetMapping("/dashboard")
     @PreAuthorize("hasAnyAuthority('ADMIN')")
     public ResponseEntity<AnalyticResponse> getAnalyticsDashboard(@RequestParam(value = "period", defaultValue = "month") String period) {
-        Period periodValueString = Period.fromString(period);
-        return ResponseEntity.ok(analyticsService.getAnalyticsDashboard(periodValueString));
+        Period parsedPeriod;
+        try {
+            parsedPeriod = Period.fromString(period);
+        } catch (IllegalArgumentException e) {
+            // Переводим здесь, а не глобальным обработчиком: IllegalArgumentException
+            // бросают и внутренние ошибки, и списывать их все на клиента нельзя.
+            throw new BadRequestException(
+                    "Недопустимое значение period: '" + period + "'. Допустимые значения: "
+                            + Period.allowedValues() + ".");
+        }
+        return ResponseEntity.ok(analyticsService.getAnalyticsDashboard(parsedPeriod));
     }
 }

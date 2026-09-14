@@ -77,15 +77,25 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         List<UserProgressProjection> projections = testAttemptRepository.findUserProgressForDashboard(DEFAULT_COURSE_ID);
 
         return projections.stream().map(proj -> {
-            int progress = calculatePercentage(proj.getTotalPassedLessons(), proj.getTotalLessonsWithTests());
+            // Поля проекции типизированы Integer и приходят из LEFT JOIN: у
+            // пользователя, попавшего в выборку по активности, может не быть
+            // строк прогресса по курсу. Распаковка такого null роняла весь
+            // дашборд с NullPointerException.
+            int progress = calculatePercentage(
+                    zeroIfNull(proj.getTotalPassedLessons()),
+                    zeroIfNull(proj.getTotalLessonsWithTests()));
             return new UserTable(
                     proj.getUserId(),
                     proj.getFullName(),
                     progress + "%",
                     proj.getNextModuleName(),
-                    (proj.getPassedInNextModule() != null ? proj.getPassedInNextModule() : 0) + 1
+                    zeroIfNull(proj.getPassedInNextModule()) + 1
             );
         }).toList();
+    }
+
+    private static int zeroIfNull(Integer value) {
+        return value != null ? value : 0;
     }
 
     private float calculateChange(long current, long previous) {
