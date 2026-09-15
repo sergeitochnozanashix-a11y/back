@@ -35,7 +35,7 @@ public interface AuthApi {
             summary = "Аутентификация пользователя",
             description = "Позволяет пользователю войти в систему, предоставляя имя пользователя и пароль. В случае успеха возвращает access-токен и устанавливает refresh-токен в HttpOnly куки.",
             requestBody = @RequestBody(description = "Данные для входа", required = true,
-                    content = @Content(schema = @Schema(implementation = AuthRequest.class)))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = AuthRequest.class)))
     )
     @ApiResponse(
             responseCode = "200",
@@ -67,7 +67,7 @@ public interface AuthApi {
             summary = "Регистрация нового пользователя",
             description = "Позволяет новому пользователю зарегистрироваться в системе. В случае успеха возвращает access-токен и устанавливает refresh-токен в HttpOnly куки.",
             requestBody = @RequestBody(description = "Данные для регистрации", required = true,
-                    content = @Content(schema = @Schema(implementation = RegisterRequest.class)))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RegisterRequest.class)))
     )
     @ApiResponse(
             responseCode = "200",
@@ -133,17 +133,17 @@ public interface AuthApi {
             @ApiResponse(
                     responseCode = "200",
                     description = "Успешная верификация. Токены сгенерированы.",
-                    content = @Content(schema = @Schema(implementation = VerificationResponse.class))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = VerificationResponse.class))
             ),
             @ApiResponse(
                     responseCode = "400",
                     description = "Неверный или истекший код верификации.",
-                    content = @Content(schema = @Schema(example = "{\"error\": \"Неверный или истекший код верификации.\"}"))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(example = "{\"error\": \"Неверный или истекший код верификации.\"}"))
             ),
             @ApiResponse(
                     responseCode = "404",
                     description = "Пользователь с указанным email не найден.",
-                    content = @Content(schema = @Schema(example = "{\"error\": \"Пользователь с таким email не найден.\"}"))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(example = "{\"error\": \"Пользователь с таким email не найден.\"}"))
             )
     })
     ResponseEntity<VerificationResponse> verifyEmail(@Valid @RequestBody VerifyEmailRequest request, HttpServletResponse response);
@@ -158,17 +158,17 @@ public interface AuthApi {
             @ApiResponse(
                     responseCode = "200",
                     description = "Новый код верификации успешно отправлен.",
-                    content = @Content(schema = @Schema(example = "{\"message\": \"Новый код верификации отправлен.\"}"))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(example = "{\"message\": \"Новый код верификации отправлен.\"}"))
             ),
             @ApiResponse(
                     responseCode = "404",
                     description = "Неверифицированный пользователь с указанным email не найден.",
-                    content = @Content(schema = @Schema(example = "{\"error\": \"Неверифицированный пользователь с таким email не найден.\"}"))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(example = "{\"error\": \"Неверифицированный пользователь с таким email не найден.\"}"))
             ),
             @ApiResponse(
                     responseCode = "429",
                     description = "Превышен лимит на количество запросов.",
-                    content = @Content(schema = @Schema(example = "{\"error\": \"Вы превысили лимит отправки писем. Попробуйте позже.\"}"))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(example = "{\"error\": \"Вы превысили лимит отправки писем. Попробуйте позже.\"}"))
             )
     })
     ResponseEntity<Map<String, String>> resendCode(@Valid @RequestBody ResendCodeRequest request);

@@ -34,9 +34,9 @@ public interface ArticleApi {
             security = @SecurityRequirement(name = "bearerAuth"),
             responses = {
                     @ApiResponse(responseCode = "201", description = "Статья успешно создана",
-                            content = @Content(schema = @Schema(implementation = ArticleResponse.class))),
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ArticleResponse.class))),
                     @ApiResponse(responseCode = "400", description = "Неверные данные",
-                            content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
                     @ApiResponse(responseCode = "403", description = "Доступ запрещен")
             }
     )
@@ -49,9 +49,9 @@ public interface ArticleApi {
             security = @SecurityRequirement(name = "bearerAuth"),
             responses = {
                     @ApiResponse(responseCode = "200", description = "Статья успешно обновлена",
-                            content = @Content(schema = @Schema(implementation = ArticleResponse.class))),
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ArticleResponse.class))),
                     @ApiResponse(responseCode = "404", description = "Статья не найдена",
-                            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
             }
     )
     @PutMapping(path = "/{articleId}", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -67,7 +67,7 @@ public interface ArticleApi {
             responses = {
                     @ApiResponse(responseCode = "204", description = "Статья успешно удалена"),
                     @ApiResponse(responseCode = "404", description = "Статья не найдена",
-                            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
             }
     )
     @DeleteMapping(path = "/{articleId}")
@@ -80,9 +80,9 @@ public interface ArticleApi {
             description = "Возвращает одну активную (опубликованную) статью по её уникальному slug. Включает полный контент.",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Успешный ответ",
-                            content = @Content(schema = @Schema(implementation = ArticleResponse.class))),
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ArticleResponse.class))),
                     @ApiResponse(responseCode = "404", description = "Статья не найдена",
-                            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class)))
             }
     )
     @GetMapping(path = "/{slug}")
