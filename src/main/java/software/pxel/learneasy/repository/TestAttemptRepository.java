@@ -93,78 +93,96 @@ public interface TestAttemptRepository extends JpaRepository<TestAttempt, Long> 
     Set<Long> findPassedLessonIdsByUserIdAndModuleIds(@Param("userId") Long userId, @Param("moduleIds") Collection<Long> moduleIds);
 
 
+    /**
+     * Строки таблицы активности для админского дашборда.
+     * <p>
+     * Прогресс каждого пользователя считается по <b>его собственному</b> курсу -
+     * тому, в котором у него последняя попытка теста. Раньше сюда передавался
+     * courseId, захардкоженный в сервисе единицей: курса с таким id в базе не
+     * было, поэтому у всех показывался прогресс 0% и пустой текущий модуль.
+     * <p>
+     * Пользователи без активности тоже попадают в выборку (LEFT JOIN) - иначе
+     * длина таблицы расходилась с totalUsers в сводке.
+     */
     @Query(value = """
             WITH LatestUserActivity AS (
-                SELECT user_id, MAX(created_at) as last_activity
+                SELECT user_id, MAX(created_at) AS last_activity
                 FROM test_attempts
-                WHERE passed = true
                 GROUP BY user_id
-                ORDER BY last_activity DESC
-                LIMIT 10
             ),
-            CourseLessonsWithTests AS (
-                SELECT l.id as lesson_id, m.id as module_id, m.title as module_title, m.sequence_order as module_order
+            -- Курс последней активности пользователя. DISTINCT ON оставляет по
+            -- одной строке на user_id, беря самую свежую попытку.
+            UserCourse AS (
+                SELECT DISTINCT ON (ta.user_id)
+                    ta.user_id,
+                    m.course_id
+                FROM test_attempts ta
+                JOIN modules m ON m.id = ta.module_id
+                ORDER BY ta.user_id, ta.created_at DESC
+            ),
+            -- Уроки с тестами по всем курсам сразу: фильтруем их курсом
+            -- конкретного пользователя ниже, а не одним общим параметром.
+            LessonsWithTests AS (
+                SELECT l.id AS lesson_id, m.id AS module_id, m.course_id,
+                       m.title AS module_title, m.sequence_order AS module_order
                 FROM lessons l
                 JOIN modules m ON l.module_id = m.id
-                WHERE m.course_id = :courseId AND EXISTS (SELECT 1 FROM tests t WHERE t.lesson_id = l.id)
+                WHERE EXISTS (SELECT 1 FROM tests t WHERE t.lesson_id = l.id)
             ),
-            UserProgress AS (
+            UserTotals AS (
                 SELECT
-                    lua.user_id,
-                    COUNT(DISTINCT t.lesson_id) FILTER (WHERE ta.passed = true) as total_passed_lessons
-                FROM LatestUserActivity lua
-                JOIN test_attempts ta ON lua.user_id = ta.user_id
-                JOIN tests t ON ta.test_id = t.id
-                WHERE t.lesson_id IN (SELECT lesson_id FROM CourseLessonsWithTests)
-                GROUP BY lua.user_id
+                    uc.user_id,
+                    (SELECT COUNT(*)
+                     FROM LessonsWithTests lwt
+                     WHERE lwt.course_id = uc.course_id) AS total_lessons_with_tests,
+                    (SELECT COUNT(DISTINCT t.lesson_id)
+                     FROM test_attempts ta
+                     JOIN tests t ON t.id = ta.test_id
+                     JOIN LessonsWithTests lwt2 ON lwt2.lesson_id = t.lesson_id
+                     WHERE ta.user_id = uc.user_id
+                       AND ta.passed = true
+                       AND lwt2.course_id = uc.course_id) AS total_passed_lessons
+                FROM UserCourse uc
             ),
-            RankedNextModules AS (
-                SELECT
-                    up.user_id,
-                    clwt.module_title,
-                    clwt.module_order,
-                    (SELECT COUNT(DISTINCT t_inner.lesson_id)
-                     FROM test_attempts ta_inner
-                     JOIN tests t_inner ON ta_inner.test_id = t_inner.id
-                     WHERE ta_inner.user_id = up.user_id AND t_inner.module_id = clwt.module_id AND ta_inner.passed = true) as passed_in_module,
-                    ROW_NUMBER() OVER(PARTITION BY up.user_id ORDER BY clwt.module_order ASC) as rn
-                FROM UserProgress up
-                CROSS JOIN CourseLessonsWithTests clwt
-                WHERE
-                    (SELECT COUNT(*) FROM CourseLessonsWithTests WHERE module_id = clwt.module_id) >
-                    (SELECT COUNT(DISTINCT t_inner.lesson_id)
-                     FROM test_attempts ta_inner
-                     JOIN tests t_inner ON ta_inner.test_id = t_inner.id
-                     WHERE ta_inner.user_id = up.user_id AND t_inner.module_id = clwt.module_id AND ta_inner.passed = true)
-            ),
-            NextModuleForUser AS (
-                SELECT
-                    user_id,
-                    module_title as next_module_name,
-                    module_order as next_module_order,
-                    passed_in_module as passed_in_next_module
-                FROM RankedNextModules
-                WHERE rn = 1
+            -- Первый по порядку модуль курса, в котором пройдены не все уроки с
+            -- тестами. DISTINCT ON + ORDER BY module_order даёт именно первый.
+            NextModule AS (
+                SELECT DISTINCT ON (uc.user_id)
+                    uc.user_id,
+                    lwt.module_title AS next_module_name,
+                    lwt.module_order AS next_module_order,
+                    (SELECT COUNT(DISTINCT t2.lesson_id)
+                     FROM test_attempts ta2
+                     JOIN tests t2 ON t2.id = ta2.test_id
+                     WHERE ta2.user_id = uc.user_id
+                       AND t2.module_id = lwt.module_id
+                       AND ta2.passed = true) AS passed_in_next_module
+                FROM UserCourse uc
+                JOIN LessonsWithTests lwt ON lwt.course_id = uc.course_id
+                WHERE (SELECT COUNT(*) FROM LessonsWithTests x WHERE x.module_id = lwt.module_id)
+                      > (SELECT COUNT(DISTINCT t3.lesson_id)
+                         FROM test_attempts ta3
+                         JOIN tests t3 ON t3.id = ta3.test_id
+                         WHERE ta3.user_id = uc.user_id
+                           AND t3.module_id = lwt.module_id
+                           AND ta3.passed = true)
+                ORDER BY uc.user_id, lwt.module_order ASC
             )
             SELECT
-                u.id                                                as userId,
-                u.username                                          as fullName,
-                COALESCE(up.total_passed_lessons, 0)                as totalPassedLessons,
-                (SELECT COUNT(*) FROM CourseLessonsWithTests)       as totalLessonsWithTests,
-                nm.next_module_name as nextModuleName,
-                nm.next_module_order as nextModuleOrder,
-                nm.passed_in_next_module as passedInNextModule
+                u.id                                        AS userId,
+                u.username                                  AS fullName,
+                COALESCE(ut.total_passed_lessons, 0)        AS totalPassedLessons,
+                COALESCE(ut.total_lessons_with_tests, 0)    AS totalLessonsWithTests,
+                nm.next_module_name                         AS nextModuleName,
+                nm.next_module_order                        AS nextModuleOrder,
+                nm.passed_in_next_module                    AS passedInNextModule
             FROM users u
-            -- LEFT JOIN, а не JOIN: раньше в таблицу попадали только пользователи
-            -- с пройденными тестами, и она расходилась с totalUsers в сводке.
-            LEFT JOIN LatestUserActivity lua ON u.id = lua.user_id
-            LEFT JOIN UserProgress up ON u.id = up.user_id
-            LEFT JOIN NextModuleForUser nm ON u.id = nm.user_id
+            LEFT JOIN LatestUserActivity lua ON lua.user_id = u.id
+            LEFT JOIN UserTotals ut ON ut.user_id = u.id
+            LEFT JOIN NextModule nm ON nm.user_id = u.id
             -- NULLS LAST обязателен: в Postgres DESC по умолчанию ставит NULL
-            -- первыми, и пользователи без активности вытеснили бы активных
-            -- наверх. Сортировка по id вторым ключом делает порядок
-            -- детерминированным среди тех, у кого активности нет.
+            -- первыми, и пользователи без активности вытеснили бы активных.
             ORDER BY lua.last_activity DESC NULLS LAST, u.id ASC
             """, nativeQuery = true)
-    List<UserProgressProjection> findUserProgressForDashboard(@Param("courseId") Long courseId);
+    List<UserProgressProjection> findUserProgressForDashboard();
 }

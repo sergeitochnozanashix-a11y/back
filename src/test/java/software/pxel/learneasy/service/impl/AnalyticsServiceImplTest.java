@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -75,7 +74,7 @@ class AnalyticsServiceImplTest {
     @DisplayName("Должен корректно собрать все три блока дашборда")
     void getAnalyticsDashboard_shouldAssembleAllBlocksCorrectly() {
         when(userRepository.getAnalyticsSummary("month")).thenReturn(summaryProjection);
-        when(testAttemptRepository.findUserProgressForDashboard(anyLong())).thenReturn(List.of(user1Progress, user2Progress));
+        when(testAttemptRepository.findUserProgressForDashboard()).thenReturn(List.of(user1Progress, user2Progress));
 
         AnalyticResponse response = analyticsService.getAnalyticsDashboard(Period.MONTH);
 
@@ -131,7 +130,7 @@ class AnalyticsServiceImplTest {
         when(idle.getTotalLessonsWithTests()).thenReturn(null);
 
         when(userRepository.getAnalyticsSummary("month")).thenReturn(summaryProjection);
-        when(testAttemptRepository.findUserProgressForDashboard(anyLong()))
+        when(testAttemptRepository.findUserProgressForDashboard())
                 .thenReturn(List.of(active, idle));
 
         AnalyticResponse response = analyticsService.getAnalyticsDashboard(Period.MONTH);
@@ -156,7 +155,7 @@ class AnalyticsServiceImplTest {
         when(noProgress.getPassedInNextModule()).thenReturn(null);
 
         when(userRepository.getAnalyticsSummary("month")).thenReturn(summaryProjection);
-        when(testAttemptRepository.findUserProgressForDashboard(anyLong())).thenReturn(List.of(noProgress));
+        when(testAttemptRepository.findUserProgressForDashboard()).thenReturn(List.of(noProgress));
 
         AnalyticResponse response = analyticsService.getAnalyticsDashboard(Period.MONTH);
 

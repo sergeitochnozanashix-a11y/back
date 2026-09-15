@@ -26,7 +26,6 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class AnalyticsServiceImpl implements AnalyticsService {
 
-    private static final Long DEFAULT_COURSE_ID = 1L;
     public static final String LOCALE_RU = "ru";
 
     private final UserRepository userRepository;
@@ -74,7 +73,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     }
 
     private List<UserTable> buildUserTable() {
-        List<UserProgressProjection> projections = testAttemptRepository.findUserProgressForDashboard(DEFAULT_COURSE_ID);
+        List<UserProgressProjection> projections = testAttemptRepository.findUserProgressForDashboard();
 
         return projections.stream().map(proj -> {
             // Поля проекции типизированы Integer и приходят из LEFT JOIN: у
