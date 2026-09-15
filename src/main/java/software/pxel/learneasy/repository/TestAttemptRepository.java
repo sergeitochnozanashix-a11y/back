@@ -155,10 +155,16 @@ public interface TestAttemptRepository extends JpaRepository<TestAttempt, Long> 
                 nm.next_module_order as nextModuleOrder,
                 nm.passed_in_next_module as passedInNextModule
             FROM users u
-            JOIN LatestUserActivity lua ON u.id = lua.user_id
+            -- LEFT JOIN, а не JOIN: раньше в таблицу попадали только пользователи
+            -- с пройденными тестами, и она расходилась с totalUsers в сводке.
+            LEFT JOIN LatestUserActivity lua ON u.id = lua.user_id
             LEFT JOIN UserProgress up ON u.id = up.user_id
             LEFT JOIN NextModuleForUser nm ON u.id = nm.user_id
-            ORDER BY lua.last_activity DESC
+            -- NULLS LAST обязателен: в Postgres DESC по умолчанию ставит NULL
+            -- первыми, и пользователи без активности вытеснили бы активных
+            -- наверх. Сортировка по id вторым ключом делает порядок
+            -- детерминированным среди тех, у кого активности нет.
+            ORDER BY lua.last_activity DESC NULLS LAST, u.id ASC
             """, nativeQuery = true)
     List<UserProgressProjection> findUserProgressForDashboard(@Param("courseId") Long courseId);
 }

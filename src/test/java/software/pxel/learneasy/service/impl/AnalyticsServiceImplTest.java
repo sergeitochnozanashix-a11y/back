@@ -113,6 +113,35 @@ class AnalyticsServiceImplTest {
     }
 
     @Test
+    @DisplayName("В таблицу попадают и активные, и неактивные пользователи")
+    void getAnalyticsDashboard_includesUsersWithoutActivity() {
+        // После замены JOIN на LEFT JOIN в выборку приходят все пользователи,
+        // а не только те, у кого есть пройденные тесты: иначе длина userTable
+        // расходилась с totalUsers в сводке.
+        UserProgressProjection active = mock(UserProgressProjection.class);
+        when(active.getUserId()).thenReturn(1L);
+        when(active.getFullName()).thenReturn("Активный");
+        when(active.getTotalPassedLessons()).thenReturn(5);
+        when(active.getTotalLessonsWithTests()).thenReturn(10);
+
+        UserProgressProjection idle = mock(UserProgressProjection.class);
+        when(idle.getUserId()).thenReturn(2L);
+        when(idle.getFullName()).thenReturn("Без активности");
+        when(idle.getTotalPassedLessons()).thenReturn(null);
+        when(idle.getTotalLessonsWithTests()).thenReturn(null);
+
+        when(userRepository.getAnalyticsSummary("month")).thenReturn(summaryProjection);
+        when(testAttemptRepository.findUserProgressForDashboard(anyLong()))
+                .thenReturn(List.of(active, idle));
+
+        AnalyticResponse response = analyticsService.getAnalyticsDashboard(Period.MONTH);
+
+        assertThat(response.userTable()).hasSize(2);
+        assertThat(response.userTable().get(0).progress()).isEqualTo("50%");
+        assertThat(response.userTable().get(1).progress()).isEqualTo("0%");
+    }
+
+    @Test
     @DisplayName("Пользователь без прогресса по курсу не роняет дашборд")
     void getAnalyticsDashboard_userWithoutProgress_doesNotFail() {
         // Реальный случай с прода: пользователь попадает в выборку по активности
