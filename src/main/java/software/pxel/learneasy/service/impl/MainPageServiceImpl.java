@@ -70,6 +70,9 @@ public class MainPageServiceImpl implements MainPageService {
                         m.id(),
                         m.sequenceOrder(),
                         m.title(),
+                        // description был доступен в источнике, но терялся при
+                        // маппинге - в спеке он при этом значился.
+                        m.description(),
                         m.totalLessons(),
                         m.completedLessons(),
                         m.completionStatus()

@@ -79,6 +79,10 @@ class MainPageServiceImplTest {
         assertEquals(3, response.modules().size());
         assertEquals(10L, response.modules().get(0).id());
         assertEquals(CompletionStatus.COMPLETED.toString(), response.modules().get(0).completionStatus());
+        // Поля контракта: в спеке они значились, но в ответ не попадали -
+        // sequenceOrder приходил под именем sequenceNumber, description терялся.
+        assertEquals(1, response.modules().get(0).sequenceOrder());
+        assertEquals("Описание 1", response.modules().get(0).description());
         assertEquals(20L, response.modules().get(1).id());
         assertEquals(CompletionStatus.IN_PROGRESS.toString(), response.modules().get(1).completionStatus());
         assertEquals(30L, response.modules().get(2).id());
