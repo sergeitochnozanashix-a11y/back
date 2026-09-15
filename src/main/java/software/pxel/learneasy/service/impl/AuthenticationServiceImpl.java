@@ -3,6 +3,7 @@ package software.pxel.learneasy.service.impl;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import software.pxel.learneasy.api.dto.auth.RegisterRequest;
@@ -24,6 +25,7 @@ import java.security.SecureRandom;
 
 import static software.pxel.learneasy.constants.AuthConstants.INVALID_VERIFICATION_RESPONSE;
 import static software.pxel.learneasy.constants.AuthConstants.MESSAGE_EMAIL_VERIFICATION;
+import static software.pxel.learneasy.constants.AuthConstants.MESSAGE_EMAIL_VERIFICATION_DISABLED;
 import static software.pxel.learneasy.constants.AuthConstants.MESSAGE_EMAIL_VERIFICATION_NOT_SENT;
 import static software.pxel.learneasy.constants.AuthConstants.RATE_LIMIT_EX_RESPONSE;
 import static software.pxel.learneasy.constants.AuthConstants.USER_EMAIL_NOT_FOUND_EX_RESPONSE;
@@ -36,6 +38,14 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
     private final SecureRandom secureRandom = new SecureRandom();
 
+    /**
+     * Требовать ли подтверждение почты при регистрации. Выключается, когда
+     * доставка писем недоступна: иначе аккаунты создаются, но войти в них
+     * нельзя - почта не подтверждена, а код не приходит.
+     */
+    @Value("${app.email.verification-required:true}")
+    private boolean verificationRequired;
+
     private final UserService userService;
     private final UserRepository userRepository;
     private final UserAuthProvider userAuthProvider;
@@ -45,6 +55,15 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     @Override
     public RegistrationResponse register(RegisterRequest request) {
         User createdUser = userService.register(request);
+
+        if (!verificationRequired) {
+            createdUser.setVerified(true);
+            userRepository.save(createdUser);
+            log.info("Подтверждение почты выключено: пользователь {} создан сразу подтверждённым",
+                    createdUser.getUsername());
+            return new RegistrationResponse(
+                    MESSAGE_EMAIL_VERIFICATION_DISABLED, createdUser.getEmail(), false);
+        }
 
         // К этому моменту пользователь уже закоммичен собственной транзакцией
         // UserService, откатить его отсюда нельзя. Поэтому доставка кода

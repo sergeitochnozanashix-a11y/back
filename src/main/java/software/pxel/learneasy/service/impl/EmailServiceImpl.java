@@ -11,6 +11,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.mail.MailException;
+import org.springframework.scheduling.annotation.Async;
 import software.pxel.learneasy.exception.EmailDeliveryException;
 import software.pxel.learneasy.service.EmailService;
 
@@ -50,6 +51,7 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @Override
+    @Async("ioExecutor")
     public void sendPasswordResetEmail(String to, String token) {
         var subject = "Сброс пароля для вашего аккаунта";
 
@@ -70,6 +72,11 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @Override
+    // Отправка уходит в фон на виртуальном потоке: SMTP может отвечать долго
+    // или не отвечать вовсе, и HTTP-запрос не должен этого ждать. До этой
+    // правки регистрация висела больше минуты и обрывалась по таймауту шлюза,
+    // хотя пользователь в базе уже создавался.
+    @Async("ioExecutor")
     public void sendVerificationEmail(String toEmail, String verificationCode) {
         var subject = "Подтверждение вашего email";
 

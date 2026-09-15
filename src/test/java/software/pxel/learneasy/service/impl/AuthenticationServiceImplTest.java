@@ -1,5 +1,6 @@
 package software.pxel.learneasy.service.impl;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -7,6 +8,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import software.pxel.learneasy.api.dto.auth.RegisterRequest;
 import software.pxel.learneasy.api.dto.user.RegistrationResponse;
 import software.pxel.learneasy.config.security.UserAuthProvider;
@@ -26,6 +28,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @DisplayName("AuthenticationService — регистрация и доставка кода")
@@ -46,6 +49,11 @@ class AuthenticationServiceImplTest {
     @InjectMocks
     private AuthenticationServiceImpl service;
 
+    @BeforeEach
+    void enableVerificationByDefault() {
+        ReflectionTestUtils.setField(service, "verificationRequired", true);
+    }
+
     private static final String EMAIL = "new.user@example.com";
 
     private static User user() {
@@ -56,6 +64,23 @@ class AuthenticationServiceImplTest {
 
     private static RegisterRequest request() {
         return new RegisterRequest("newuser", EMAIL, "password");
+    }
+
+    @Test
+    @DisplayName("подтверждение выключено — пользователь сразу верифицирован, письмо не шлётся")
+    void verificationDisabled_createsVerifiedUser() {
+        ReflectionTestUtils.setField(service, "verificationRequired", false);
+        User user = user();
+        when(userService.register(any(RegisterRequest.class))).thenReturn(user);
+
+        RegistrationResponse response = service.register(request());
+
+        assertTrue(user.isVerified(), "пользователь должен быть сразу подтверждён");
+        assertFalse(response.emailSent());
+        verify(userRepository).save(user);
+        // Ни кода, ни письма: отправлять нечего.
+        verifyNoInteractions(emailService);
+        verifyNoInteractions(redisVerificationService);
     }
 
     @Nested

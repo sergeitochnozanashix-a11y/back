@@ -91,6 +91,11 @@ server:
   forward-headers-strategy: FRAMEWORK
 
 app:
+  email:
+    # false отключает подтверждение почты: пользователь создаётся сразу
+    # подтверждённым и письмо не отправляется. Нужно, пока доставка писем
+    # недоступна - иначе зарегистрироваться можно, а войти нельзя.
+    verification-required: ${EMAIL_VERIFICATION_REQUIRED:true}
   frontend:
     reset-password-url: ${FRONTEND_RESET_PASSWORD_URL:https://edu.pxel.software/reset-password}
 password:

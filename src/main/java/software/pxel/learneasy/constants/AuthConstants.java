@@ -8,6 +8,12 @@ public class AuthConstants {
      * Аккаунт создан, но код доставить не удалось. Сообщение ведёт клиента к
      * повторной отправке вместо бесполезного ожидания письма.
      */
+    /**
+     * Подтверждение почты выключено флагом: аккаунт сразу готов к входу.
+     */
+    public static final String MESSAGE_EMAIL_VERIFICATION_DISABLED =
+            "The account has been created. You can log in right away.";
+
     public static final String MESSAGE_EMAIL_VERIFICATION_NOT_SENT =
             "The account has been created, but the confirmation code could not be sent. "
                     + "Please request the code again.";
