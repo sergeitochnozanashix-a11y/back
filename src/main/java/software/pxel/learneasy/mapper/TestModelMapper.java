@@ -20,7 +20,11 @@ public interface TestModelMapper {
     @Mapping(target = "questions", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    TestModel toLessonTestModel(TestRequest testRequest, Lesson lesson, Module module);
+    /**
+     * Собирает тест обоих типов. Для MODULE_EXAM {@code lesson} равен null -
+     * колонка tests.lesson_id стала nullable ещё в миграции V8.
+     */
+    TestModel toTestModel(TestRequest testRequest, Lesson lesson, Module module);
 
     @Mapping(target = "lessonId", source = "lesson.id")
     @Mapping(target = "moduleId", source = "module.id")

@@ -28,6 +28,13 @@ public interface TestModelRepository extends JpaRepository<TestModel, Long> {
 
     boolean existsByLessonIdAndModuleId(Long lessonId, Long moduleId);
 
+    /**
+     * Дубликат экзамена по модулю. Прежняя проверка existsByLessonIdAndModuleId
+     * для экзаменов бесполезна: lesson_id у них null, а сравнение с null в SQL
+     * никогда не истинно, поэтому дубль проходил бы насквозь.
+     */
+    boolean existsByModuleIdAndTestType(Long moduleId, TestType testType);
+
     @Query("SELECT t.id AS id, t.title AS title, t.module.id AS moduleId, t.module.title AS moduleTitle, " +
             "t.module.sequenceOrder AS moduleSequenceOrder, " +
             "SIZE(t.questions) AS questionsCount, t.passThresholdPercentage AS passThresholdPercentage " +

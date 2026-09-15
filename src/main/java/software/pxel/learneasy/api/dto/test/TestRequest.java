@@ -14,11 +14,13 @@ public record TestRequest(
         @NotNull(message = "Test type cannot be null")
         TestType testType,
 
-        @Schema(description = "Уникальный идентификатор урока, к которому относится тест. Используется только для LESSON_TEST.", example = "1")
+        @Schema(description = "Идентификатор урока. Обязателен для LESSON_TEST; "
+                + "для MODULE_EXAM игнорируется, экзамен привязывается к модулю целиком.", example = "1")
         @Positive
         Long lessonId,
 
-        @Schema(description = "Уникальный идентификатор модуля, к которому относится экзамен. Используется только для MODULE_EXAM.", example = "1")
+        @Schema(description = "Идентификатор модуля. Обязателен для обоих типов: "
+                + "для LESSON_TEST модуль берётся у урока, для MODULE_EXAM задаёт сам экзамен.", example = "1")
         @Positive
         @NotNull(message = "Module id cannot be null")
         Long moduleId,

@@ -9,6 +9,7 @@ import software.pxel.learneasy.api.dto.test.ExamDTO;
 import software.pxel.learneasy.api.dto.test.LastResultDTO;
 import software.pxel.learneasy.api.dto.test.TestRequest;
 import software.pxel.learneasy.api.dto.test.TestResponse;
+import software.pxel.learneasy.exception.BadRequestException;
 import software.pxel.learneasy.exception.ResourceConflictException;
 import software.pxel.learneasy.exception.ResourceNotFoundException;
 import software.pxel.learneasy.mapper.TestModelMapper;
@@ -20,6 +21,7 @@ import software.pxel.learneasy.model.enums.AnswerEvaluation;
 import software.pxel.learneasy.model.enums.ExamStatus;
 import software.pxel.learneasy.model.enums.TestType;
 import software.pxel.learneasy.repository.LessonRepository;
+import software.pxel.learneasy.repository.ModuleRepository;
 import software.pxel.learneasy.repository.TestAnswerRepository;
 import software.pxel.learneasy.repository.TestAttemptRepository;
 import software.pxel.learneasy.repository.TestModelRepository;
@@ -38,6 +40,7 @@ public class TestServiceImpl implements TestService {
 
     private final TestModelRepository testModelRepository;
     private final LessonRepository lessonRepository;
+    private final ModuleRepository moduleRepository;
     private final TestAttemptRepository attemptRepository;
     private final TestModelMapper testModelMapper;
     private final QuestionService questionService;
@@ -46,20 +49,14 @@ public class TestServiceImpl implements TestService {
     @Override
     @Transactional
     public TestResponse createTest(TestRequest testRequest) {
-        if (testModelRepository.existsByLessonIdAndModuleId(testRequest.lessonId(), testRequest.moduleId())) {
-            throw new ResourceConflictException("Test for lesson ID " + testRequest.lessonId() + " and module ID " + testRequest.moduleId() + " already exists.");
-        }
-
-        TestModel testModel;
-
-        if (testRequest.lessonId() != null) {
-            Lesson lesson = findLessonById(testRequest.lessonId());
-            Module module = lesson.getModule();
-            testModel = testModelMapper.toLessonTestModel(testRequest, lesson, module);
-        } else {
-            // Логика для экзаменов на модуль (если потребуется)
-            throw new UnsupportedOperationException("Module-level exams are not fully supported for creation this way.");
-        }
+        // Ветвимся по testType, а не по наличию lessonId. Прежняя развилка
+        // "если lessonId задан - урок, иначе экзамен" игнорировала объявленный
+        // тип и упиралась в UnsupportedOperationException: экзамен по модулю
+        // отдавал 500, а LESSON_TEST без урока - тоже 500 вместо внятного 400.
+        TestModel testModel = switch (testRequest.testType()) {
+            case LESSON_TEST -> buildLessonTest(testRequest);
+            case MODULE_EXAM -> buildModuleExam(testRequest);
+        };
 
         TestModel persistedTestModel = testModelRepository.save(testModel);
         questionService.replaceQuestionsForTest(persistedTestModel, testRequest.questions());
@@ -173,6 +170,35 @@ public class TestServiceImpl implements TestService {
 
         Lesson newLesson = findLessonById(newLessonId);
         testModel.setLesson(newLesson);
+    }
+
+    private TestModel buildLessonTest(TestRequest testRequest) {
+        if (testRequest.lessonId() == null) {
+            throw new BadRequestException("lessonId обязателен для теста типа LESSON_TEST.");
+        }
+
+        if (testModelRepository.existsByLessonId(testRequest.lessonId())) {
+            throw new ResourceConflictException(
+                    "Test for lesson ID " + testRequest.lessonId() + " already exists.");
+        }
+
+        Lesson lesson = findLessonById(testRequest.lessonId());
+        return testModelMapper.toTestModel(testRequest, lesson, lesson.getModule());
+    }
+
+    private TestModel buildModuleExam(TestRequest testRequest) {
+        // lessonId для экзамена не нужен и намеренно игнорируется: экзамен
+        // привязан к модулю целиком.
+        Module module = moduleRepository.findById(testRequest.moduleId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Module not found with id: " + testRequest.moduleId()));
+
+        if (testModelRepository.existsByModuleIdAndTestType(module.getId(), TestType.MODULE_EXAM)) {
+            throw new ResourceConflictException(
+                    "Exam for module ID " + module.getId() + " already exists.");
+        }
+
+        return testModelMapper.toTestModel(testRequest, null, module);
     }
 
     private Lesson findLessonById(Long lessonId) {

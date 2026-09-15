@@ -14,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import software.pxel.learneasy.api.dto.test.ExamDTO;
 import software.pxel.learneasy.api.dto.test.TestRequest;
 import software.pxel.learneasy.api.dto.test.TestResponse;
+import software.pxel.learneasy.exception.BadRequestException;
 import software.pxel.learneasy.exception.ResourceConflictException;
 import software.pxel.learneasy.exception.ResourceNotFoundException;
 import software.pxel.learneasy.mapper.TestModelMapper;
@@ -47,6 +48,8 @@ class TestServiceImplTest {
     @Mock
     LessonRepository lessonRepository;
     @Mock
+    ModuleRepository moduleRepository;
+    @Mock
     TestAttemptRepository attemptRepository;
     @Mock
     TestAnswerRepository testAnswerRepository;
@@ -63,12 +66,12 @@ class TestServiceImplTest {
     class CreateTest {
 
         @Test
-        @DisplayName("ошибка — для пары урока и модуля уже есть тест (409)")
+        @DisplayName("ошибка — у урока уже есть тест (409)")
         void error_conflictLessonTestExists() {
             var req = new TestRequest(TestType.LESSON_TEST, 11L, 22L, "Title", 70, List.of());
-            when(testModelRepository.existsByLessonIdAndModuleId(11L, 22L)).thenReturn(true);
+            when(testModelRepository.existsByLessonId(11L)).thenReturn(true);
             assertThrows(ResourceConflictException.class, () -> service.createTest(req));
-            verify(testModelRepository).existsByLessonIdAndModuleId(11L, 22L);
+            verify(testModelRepository).existsByLessonId(11L);
             verifyNoMoreInteractions(testModelRepository);
             verifyNoInteractions(lessonRepository, testModelMapper, questionService);
         }
@@ -92,11 +95,11 @@ class TestServiceImplTest {
             var module = module(22L);
             lesson.setModule(module); // Связываем моки
 
-            when(testModelRepository.existsByLessonIdAndModuleId(11L, 22L)).thenReturn(false);
+            when(testModelRepository.existsByLessonId(11L)).thenReturn(false);
             when(lessonRepository.findById(11L)).thenReturn(Optional.of(lesson));
 
             var mapped = new TestModel();
-            when(testModelMapper.toLessonTestModel(req, lesson, module)).thenReturn(mapped);
+            when(testModelMapper.toTestModel(req, lesson, module)).thenReturn(mapped);
 
             var persisted = new TestModel();
             persisted.setId(100L);
@@ -116,16 +119,88 @@ class TestServiceImplTest {
         }
 
         @Test
-        @DisplayName("ошибка — создание экзамена по модулю не поддерживается (UnsupportedOperationException)")
-        void error_moduleExamCreation_isUnsupported() {
+        @DisplayName("успех — создаёт экзамен по модулю (MODULE_EXAM) без lessonId")
+        void success_createModuleExam() {
+            // Ключевой сценарий: раньше эта ветка бросала UnsupportedOperationException
+            // и наружу уходило 500.
             var req = new TestRequest(TestType.MODULE_EXAM, null, 33L, "Exam", 60, List.of());
-            when(testModelRepository.existsByLessonIdAndModuleId(null, 33L)).thenReturn(false);
+            var module = module(33L);
 
-            assertThrows(UnsupportedOperationException.class, () -> service.createTest(req));
+            when(moduleRepository.findById(33L)).thenReturn(Optional.of(module));
+            when(testModelRepository.existsByModuleIdAndTestType(33L, TestType.MODULE_EXAM)).thenReturn(false);
 
-            verify(testModelRepository).existsByLessonIdAndModuleId(null, 33L);
-            verifyNoMoreInteractions(testModelRepository);
+            var mapped = new TestModel();
+            // Урок экзамену не нужен - в маппер уходит null.
+            when(testModelMapper.toTestModel(req, null, module)).thenReturn(mapped);
+
+            var persisted = new TestModel();
+            persisted.setId(200L);
+            when(testModelRepository.save(mapped)).thenReturn(persisted);
+            when(testModelRepository.saveAndFlush(persisted)).thenReturn(persisted);
+
+            var resp = new TestResponse(200L, null, 33L, null, null, "MODULE_EXAM", "Exam", 60, List.of());
+            when(testModelMapper.toTestResponse(any(TestModel.class))).thenReturn(resp);
+
+            TestResponse out = service.createTest(req);
+
+            assertEquals(200L, out.id());
+            assertNull(out.lessonId());
+            assertEquals(33L, out.moduleId());
+            // К урокам экзамен не обращается вовсе.
+            verifyNoInteractions(lessonRepository);
+            verify(questionService).replaceQuestionsForTest(persisted, req.questions());
+        }
+
+        @Test
+        @DisplayName("ошибка — модуль для экзамена не найден (404)")
+        void error_moduleNotFound_inModuleExam() {
+            var req = new TestRequest(TestType.MODULE_EXAM, null, 33L, "Exam", 60, List.of());
+            when(moduleRepository.findById(33L)).thenReturn(Optional.empty());
+
+            var ex = assertThrows(ResourceNotFoundException.class, () -> service.createTest(req));
+            assertTrue(ex.getMessage().contains("Module not found with id: 33"));
             verifyNoInteractions(lessonRepository, testModelMapper, questionService);
+        }
+
+        @Test
+        @DisplayName("ошибка — у модуля уже есть экзамен (409)")
+        void error_moduleExamAlreadyExists() {
+            var req = new TestRequest(TestType.MODULE_EXAM, null, 33L, "Exam", 60, List.of());
+            when(moduleRepository.findById(33L)).thenReturn(Optional.of(module(33L)));
+            when(testModelRepository.existsByModuleIdAndTestType(33L, TestType.MODULE_EXAM)).thenReturn(true);
+
+            assertThrows(ResourceConflictException.class, () -> service.createTest(req));
+            verifyNoInteractions(testModelMapper, questionService);
+        }
+
+        @Test
+        @DisplayName("ошибка — LESSON_TEST без lessonId даёт 400, а не 500")
+        void error_lessonTestWithoutLessonId() {
+            var req = new TestRequest(TestType.LESSON_TEST, null, 22L, "Title", 70, List.of());
+
+            var ex = assertThrows(BadRequestException.class, () -> service.createTest(req));
+            assertTrue(ex.getMessage().contains("lessonId"), ex.getMessage());
+            verifyNoInteractions(lessonRepository, testModelMapper, questionService);
+        }
+
+        @Test
+        @DisplayName("lessonId у экзамена игнорируется, а не ведёт к созданию теста урока")
+        void moduleExam_ignoresLessonId() {
+            var req = new TestRequest(TestType.MODULE_EXAM, 11L, 33L, "Exam", 60, List.of());
+            var module = module(33L);
+
+            when(moduleRepository.findById(33L)).thenReturn(Optional.of(module));
+            when(testModelRepository.existsByModuleIdAndTestType(33L, TestType.MODULE_EXAM)).thenReturn(false);
+            when(testModelMapper.toTestModel(req, null, module)).thenReturn(new TestModel());
+            when(testModelRepository.save(any(TestModel.class))).thenReturn(new TestModel());
+            when(testModelRepository.saveAndFlush(any(TestModel.class))).thenReturn(new TestModel());
+            when(testModelMapper.toTestResponse(any(TestModel.class)))
+                    .thenReturn(new TestResponse(1L, null, 33L, null, null, "MODULE_EXAM", "Exam", 60, List.of()));
+
+            service.createTest(req);
+
+            // Развилка идёт по testType: урок не ищется даже когда lessonId передан.
+            verifyNoInteractions(lessonRepository);
         }
     }
 
