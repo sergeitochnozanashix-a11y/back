@@ -94,7 +94,8 @@ public interface ArticleApi {
             summary = "Получить краткий список активных статей (без контента)",
             description = "Возвращает пагинированный список активных (опубликованных) статей без поля `content` для оптимизации.",
             responses = @ApiResponse(responseCode = "200", description = "Успешный ответ",
-                    content = @Content(schema = @Schema(implementation = PageArticleInfo.class)))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = PageArticleInfo.class)))
     )
     @GetMapping("/info")
     ResponseEntity<PageableResponse<ArticleInfoResponse>> getActiveArticlesInfo(
@@ -107,7 +108,8 @@ public interface ArticleApi {
             description = "Возвращает пагинированный список всех статей без поля `content` для оптимизации.",
             security = @SecurityRequirement(name = "bearerAuth"),
             responses = @ApiResponse(responseCode = "200", description = "Успешный ответ",
-                    content = @Content(schema = @Schema(implementation = PageArticleInfo.class)))
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = PageArticleInfo.class)))
     )
     @GetMapping("/all/info")
     ResponseEntity<PageableResponse<ArticleInfoResponse>> getAllArticlesInfo(

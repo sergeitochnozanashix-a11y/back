@@ -14,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import software.pxel.learneasy.api.dto.common.ErrorResponse;
 import software.pxel.learneasy.api.dto.attempt.CreateAttemptRequest;
+import software.pxel.learneasy.api.dto.attempt.PageTestAttemptResponse;
 import software.pxel.learneasy.api.dto.attempt.TestAttemptResponse;
 import software.pxel.learneasy.model.User;
 
@@ -71,7 +72,8 @@ public interface TestAttemptApi {
             description = "Возвращает постраничный список попыток текущего пользователя для теста.",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Успешный ответ",
-                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE)),
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = PageTestAttemptResponse.class))),
                     @ApiResponse(responseCode = "401", description = "Неавторизованный доступ")
             }
     )
